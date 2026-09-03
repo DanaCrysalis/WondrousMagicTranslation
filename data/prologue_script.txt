@@ -1,0 +1,67 @@
+Wondrous Magic - prologue script
+Source: RUX archive at ROM $132000 -> WRAM $7F:1DE7; script at blob offset $07AC ($7F:2593)
+Format: one 16-bit word per character, $0002 = line break, glyph index = word - $20
+        (0-191 text bank, 192-447 kanji bank)
+
+はるかむかし… このせかいが
+ できてまもないころ 人びとは
+ おそろしい幻獣たちの攻撃から
+ ただにげまどうだけでした…
+ それをみかねた女神シュレルは
+ えらばれし者に 魔力をあたえ
+ 人びとを まもらせたのです…
+ やがてかれらは 魔力をみがき
+ ついには幻獣の神イヴァスをも
+ たおすことができたのですが…
+ イヴァスは くちはてながらも
+ ─人の魔法使いの 腕をつかみ
+ こういいのこしたそうです……
+『おまえの 99だいめの娘は
+  剣士とちぎり 子を宿す…
+  われはその子の力により
+   ふたたびこのせかいに
+   蘇るであろう………
+
+
+== English ==
+
+Intro poem:
+Let us meet again
+where dreams are not illusions
+where you are not yourself
+in such a land
+Let us meet again
+where words are not lies
+in another world
+It is here
+Beyond that forest?
+No - in the mirror,
+within those shining eyes
+Let us meet again
+where dreams are not illusions
+where I am not myself
+in such a land
+Let us meet again
+where all becomes magic
+with another you
+in the land where we meet...
+
+Prologue:
+Long ago, when this world was
+still newly made, people fled
+in terror before the onslaught
+of the phantom beasts.
+The goddess Shrell could not
+bear it. She gave magic to
+the chosen, to guard them all.
+In time they honed that art
+and felled Ivuas himself,
+god of the phantom beasts...
+Yet as Ivuas rotted away he
+seized one mage by the arm
+and left these words behind:
+'Your 99th daughter shall
+lie with a swordsman and
+bear a child. By its power
+I shall return once more
+to this world......'
