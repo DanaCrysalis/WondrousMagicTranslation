@@ -32,32 +32,21 @@ FONT = 0x0A8000
 TABLE = 0x141000
 ATTR = 0x1C00
 
-# string offset -> (English, original byte length including terminator)
-STRINGS = {
-    0x141020: "Start",
-    0x14102E: "Continue",
-    0x14103C: "Options",
-    0x141048: "Please enter a name.",
-    0x141064: "Copy data",
-    0x141076: "Erase data",
-    0x141086: "Rename",
-    0x141098: "Yes",
-    0x1410A2: "No",
-    0x1410AC: "Where?",
-    0x141264: "Is this OK?",
-}
+import sheet
 
-# name entry chart: one letter per cell, 14 per row, row lengths must not change
-CHART_ROWS = [
-    "ABCDEFGHIJKLMN",
-    "OPQRSTUVWXYZ.,",
-    "abcdefghijklmn",
-    "opqrstuvwxyz-'",
-    "0123456789    ",
-    "",
-    "             ",      # 13 + the trailing symbol the original keeps here
-    "            ",       # 12 + two trailing symbols
-]
+# Both tables now live in the workbook: the `Title screen` and `Name entry`
+# sheets. Row lengths in the grid are load-bearing, so they are checked here
+# rather than trusted - a spreadsheet editor will happily eat a trailing space.
+STRINGS = sheet.title()
+CHART_ROWS = sheet.chart()
+
+_EXPECT = [14, 14, 14, 14, 14, 0, 13, 12]
+assert len(CHART_ROWS) == len(_EXPECT), \
+    'Name entry sheet has %d rows, expected %d' % (len(CHART_ROWS), len(_EXPECT))
+for _i, (_row, _n) in enumerate(zip(CHART_ROWS, _EXPECT)):
+    assert len(_row) == _n, \
+        'Name entry row %d is %d cells, must be %d (trailing spaces matter)' \
+        % (_i + 1, len(_row), _n)
 
 pairs = {}
 

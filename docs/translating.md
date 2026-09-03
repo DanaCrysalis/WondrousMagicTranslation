@@ -1,27 +1,53 @@
 # Translating
 
-## Blocks A, B and C
+## The workbook is the script
 
-`data/Wondrous_Magic_script.xlsx` — 2,884 rows, one per string.
+`data/Wondrous_Magic_script.xlsx` — 2,884 rows in `Script`, one per string, plus
+the sheets that hold everything else.
 
-The workbook is **generated**, not authored. `python3 tools/make_spreadsheet.py`
-rebuilds it from the ROM and the three script modules, so it can never drift from
-what is actually inserted. Editing a cell will not change the ROM — put the
-English in `build/script_a.py`, `script_b.py` or `script_c.py` and regenerate.
+It is the **only** place English is authored. There are no `script_a.py`,
+`script_b.py` or `script_c.py` tables any more, and no hand-written STRINGS or
+POEM lists either. `build/sheet.py` reads the workbook and hands the build the
+dicts it used to import.
 
-| Column | |
-|---|---|
-| ID / ROM / CPU | where the string lives |
-| Bytes | original size; stay at or under it for in-place insertion |
-| Status | `done` if this string is inserted |
-| Japanese | decoded, with control codes as `<...>` tokens |
-| English | green where inserted, yellow where still open |
-| Raw hex | the original bytes |
+| Sheet | Holds | Authored? |
+|---|---|---|
+| Script | every ROM string, blocks A B C | English column, blocks B and C |
+| Item names | 151 block A item names | yes |
+| Descriptions | 114 block A description bodies | yes |
+| Title screen | title, save and options strings | yes |
+| Name entry | the name entry grid | yes |
+| Intro crawl | the opening poem and prologue | yes |
+| Glossary | agreed renderings | yes |
+| Questions | open calls for the translator | yes |
+| Control codes | token reference | generated |
+
+Two things are generated and will be overwritten, so do not edit them:
+
+- **The block A English column.** Descriptions are assembled from the item name,
+  the icon run copied verbatim out of the original ROM string, and the
+  description body. Edit `Item names` and `Descriptions` instead. Those cells are
+  shaded grey.
+- **Everything to the left of English** — ID, ROM, CPU, Bytes, Japanese, Raw hex.
+  `tools/refresh_spreadsheet.py` rewrites them from the ROM.
+
+### Working on it
+
+    python3 tools/check_script.py          # tokens, width, ASCII, rough budget
+    python3 build/build.py                 # the real byte budgets
+    python3 tools/refresh_spreadsheet.py   # only after the ROM columns go stale
+
+`refresh_spreadsheet.py` matches rows by ROM offset and never touches authored
+English, so it is safe to run at any time. It replaces the old
+`make_spreadsheet.py`, which generated the workbook from the modules — the
+opposite direction.
 
 Rules:
 
 - Keep every `<...>` token, in order. They are engine commands, not decoration.
-- Check the Glossary sheet before inventing a rendering.
+  `check_script.py` will catch a dropped one.
+- Check the Glossary sheet before inventing a rendering; log anything you had to
+  guess on the Questions sheet.
 - A dialogue box is 14 cells wide, which at half-width is **28 characters** per
   line. Break lines to fit that, not to match the Japanese.
 - English costs roughly one byte per character with the half-width engine. Block B
@@ -30,6 +56,14 @@ Rules:
 
 `tools/wmtool.py` has `decode()`, `text()` and `encode()` for round-tripping.
 `encode()` accepts kanji and emits `$1E xx`.
+
+### The one thing a spreadsheet is bad at
+
+Trailing spaces. The `Name entry` grid rows must be exactly 14, 14, 14, 14, 14,
+0, 13 and 12 cells, and some of those cells are spaces; an editor that trims them
+silently breaks the grid. `systext.py` asserts the lengths on import rather than
+trusting them, and the sheet carries a Length column so you can see it go wrong.
+The same applies to the single leading space on continuation lines in dialogue.
 
 ## Display width, not just bytes
 
@@ -47,10 +81,16 @@ the place names use it for "X's house".
 
 ## Block A
 
-`build/script_a.py` holds only two hand-written tables — `NAMES` (151 items) and
-`TAILS` (114 description bodies). `build()` walks the block and assembles each
-description from the English name, the original icon run, and the tail, so the
-150-odd description strings never have to be written out.
+151 items, each a short name string followed by a description string. The
+description's first line repeats the name, padded, then carries stat icons
+(`<S36>` `<S37>` `<S38>`) and their values; the rest is the usage or equip
+restriction.
+
+Only two tables are written by hand, and both are now sheets: `Item names` and
+`Descriptions`. `sheet.block_a()` walks the block and assembles each description
+from the English name, the original icon run, and the body, so the 150-odd
+description strings never have to be written out. 114 distinct bodies cover all
+151 descriptions.
 
 The description's first line is the name padded to the width the Japanese name
 and its padding occupied, then the stat icons. Where an English name will not fit
@@ -58,12 +98,15 @@ that width the icons simply shift left; the builder only asserts the line stays
 inside the 14-cell window. Full-width `＋`, `−` and `？` in the icon run are
 mapped to ASCII, which buys back half a cell each.
 
-## Block B
+## Blocks B and C
 
-`build/script_b.py`, keyed by ROM offset. Block B is 412 strings, 42,219 Japanese
-characters over 4,681 lines — a novel's worth of dialogue, translated in passes.
-Anything absent from the dict is left in Japanese, which the engine renders as
-ASCII nonsense, so an untranslated scene is obvious rather than subtly wrong.
+Authored directly in the `Script` sheet: what is in the English column is what
+gets inserted. Block B is 412 strings, 42,219 Japanese characters over 4,681
+lines. It is complete except for `$098340`, which is two bytes (`0D 00`) and
+holds no text. Block C is menus, windows and status text.
+
+Anything left blank stays Japanese, which the engine renders as ASCII nonsense,
+so an untranslated string is obvious rather than subtly wrong.
 
 Strings must fit their original byte length: block B's addresses are computed
 somewhere I have not found, so nothing can be relocated or resized. The
@@ -76,7 +119,7 @@ first away.
 
 ## The intro crawl
 
-`build/prologue_patch.py`, lists `POEM` and `PROLOGUE`. Up to 32 characters a
+`build/prologue_patch.py` reads the `Intro crawl` sheet. Up to 32 characters a
 line, cut at column 16 into two records of 16 glyphs. Both sections must keep
 their exact byte length; the builder pads with blank rows and asserts.
 
@@ -84,11 +127,13 @@ Pairs are generated automatically from whatever text you write.
 
 ## Title screen and name entry
 
-`build/systext.py`, dict `STRINGS`. Each entry is rewritten inside its original
-byte length, so keep them short — the builder asserts if a string will not fit.
+`build/systext.py` reads the `Title screen` and `Name entry` sheets. Each title
+string is rewritten inside its original byte length, so keep them short — the
+builder asserts if a string will not fit.
 
-`CHART_ROWS` is the name entry grid. Row lengths must not change; the builder
-preserves the symbol buttons parked at the ends of the last two rows.
+`Name entry` is the grid. Row lengths must not change; the builder preserves the
+symbol buttons parked at the ends of the last two rows, and asserts the lengths
+on import.
 
 ## The font
 

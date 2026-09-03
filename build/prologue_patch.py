@@ -30,47 +30,10 @@ FONT = 0x138000                   # $27:8000, free
 POEM_BODY = (0x0000, 0x07A8)
 PROL_BODY = (0x07AA, 0x0F8C)
 
-POEM = [
-    "Let us meet again",
-    "where dreams are not dreams",
-    "where you are not yourself",
-    "in such a land",
-    "Let us meet again",
-    "where words are not lies",
-    "in another world",
-    "It is here.",
-    "Beyond that forest?",
-    "No - in the mirror,",
-    "within those shining eyes",
-    "Let us meet again",
-    "where dreams are not dreams",
-    "where I am not myself",
-    "in such a land",
-    "Let us meet again",
-    "where all becomes magic",
-    "with another you",
-    "in the land where we meet.",
-]
+import sheet
 
-PROLOGUE = [
-    "Long ago, when this world was",
-    "still new, the people fled in",
-    "terror from the phantom beasts.",
-    "The goddess Shrell pitied them",
-    "and gave magic to the chosen,",
-    "that they might guard the rest.",
-    "In time they honed that art and",
-    "felled even Ivuas himself, god",
-    "of the phantom beasts.",
-    "Yet as Ivuas rotted away he",
-    "seized one mage by the arm and",
-    "left these words behind:",
-    "'Your 99th daughter shall lie",
-    "with a swordsman and bear a",
-    "child. By its power I shall",
-    "return once more to this",
-    "world......'",
-]
+# The poem and the prologue are authored on the `Intro crawl` sheet.
+POEM, PROLOGUE = sheet.crawl()
 
 COLS = 32                          # 16 glyph cells, two letters each
 pairs = {'  ': 0}                  # glyph 0 stays blank

@@ -7,6 +7,9 @@
   4. Blocks A, B and C plus the dictionary at $1F2000
   5. Title screen and name entry
 
+All English comes from data/Wondrous_Magic_script.xlsx by way of build/sheet.py.
+There are no script_*.py tables any more.
+
 The Japanese font at $0A8000 is deliberately left untouched. The title screen and
 the name entry screen read it directly - they are not part of the text engine, and
 overwriting it was what garbled them.
@@ -61,27 +64,24 @@ if __name__ == '__main__':
         assert bytes(rom[off:off+1]) == expect, '%06X' % off
         rom[off:off+1] = data
 
-    # 5. blocks A and C
-    import script_a, script_b, script_c, dictionary, wmtool
-    text_a, missing = script_a.build()
-    assert not missing, missing[:4]
-    strings = dict(script_c.TEXT)
-    strings.update(text_a)
-    strings.update(script_b.TEXT)
+    # 5. blocks A, B and C - all of it out of the workbook
+    import sheet, dictionary, wmtool
+    strings = sheet.text()
+    block_c = {off: en for off, en in strings.items() if off < 0x090EF6}
     budgets = []
     for off, en in sorted(strings.items()):
         _, end = wmtool.decode(off)
         budgets.append((en, end - off))
     import re
-    for off, en in sorted(script_c.TEXT.items()):        # window rows are whole cells
+    for off, en in sorted(block_c.items()):              # window rows are whole cells
         for line in en.split('\n'):
             m = re.match(r'^<EEA>(.*)<EFA>', line)
             if m:
                 w = wmtool.cells(m.group(1))
                 assert w == int(w), '%06X: row is %s cells, not whole' % (off, w)
     for off in range(0x0909A0, 0x090A5C):               # map nameplate is ten
-        if off in script_c.TEXT:                        # half-width characters
-            w = wmtool.cells(script_c.TEXT[off]) * 2
+        if off in block_c:                              # half-width characters
+            w = wmtool.cells(block_c[off]) * 2
             assert w <= 10, '%06X: nameplate %s wide' % (off, w)
     entries = dictionary.fit(budgets, dictionary.choose([t for t, _ in budgets], count=300))
     dsize = dictionary.write(rom, entries)
@@ -92,7 +92,8 @@ if __name__ == '__main__':
         rom[off:off + len(data)] = data
         for i in range(off + len(data), end):
             rom[i] = 0x00
-    print('blocks A+B+C: %d strings, dictionary %d entries / %d bytes'
+    print('blocks A+B+C: %d strings from the workbook, '
+          'dictionary %d entries / %d bytes'
           % (len(strings), len(entries), dsize))
 
     # 6. title screen and name entry
