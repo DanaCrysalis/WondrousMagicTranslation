@@ -14,34 +14,17 @@ overwriting it was what garbled them.
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import paths
+import glyphs
 
 import sys
-from PIL import Image, ImageDraw, ImageFont
 
 ROM_IN = paths.ROM_IN
 ROM_OUT = paths.ROM_OUT
 HW_FONT = 0x1F1000                # $3E:9000
-TTF = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf', 11)
 
 
 def write_halfwidth_font(rom):
-    """Glyph h at HW_FONT + h*32: top 8x8 tile then bottom. h draws ASCII h + $1F,
-    so h=1 is space; h=0 and h=96 stay blank."""
-    for h in range(97):
-        img = Image.new('L', (8, 16), 0)
-        if 0 < h < 96:
-            ImageDraw.Draw(img).text((0, 2), chr(h + 0x1F), font=TTF, fill=255)
-        px = [[3 if img.getpixel((x, y)) > 110 else 0 for x in range(8)] for y in range(16)]
-        o = HW_FONT + h * 32
-        for half in (0, 1):
-            for y in range(8):
-                p0 = p1 = 0
-                for x in range(8):
-                    v = px[half*8 + y][x]
-                    p0 |= (v & 1) << (7-x)
-                    p1 |= ((v >> 1) & 1) << (7-x)
-                rom[o + half*16 + y*2] = p0
-                rom[o + half*16 + y*2 + 1] = p1
+    glyphs.write_half(rom, HW_FONT)
 
 
 def checksum(rom):
@@ -96,6 +79,10 @@ if __name__ == '__main__':
             if m:
                 w = wmtool.cells(m.group(1))
                 assert w == int(w), '%06X: row is %s cells, not whole' % (off, w)
+    for off in range(0x0909A0, 0x090A5C):               # map nameplate is ten
+        if off in script_c.TEXT:                        # half-width characters
+            w = wmtool.cells(script_c.TEXT[off]) * 2
+            assert w <= 10, '%06X: nameplate %s wide' % (off, w)
     entries = dictionary.fit(budgets, dictionary.choose([t for t, _ in budgets], count=300))
     dsize = dictionary.write(rom, entries)
     for off, en in sorted(strings.items()):

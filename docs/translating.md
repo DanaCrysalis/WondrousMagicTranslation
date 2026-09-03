@@ -4,12 +4,18 @@
 
 `data/Wondrous_Magic_script.xlsx` — 2,884 rows, one per string.
 
+The workbook is **generated**, not authored. `python3 tools/make_spreadsheet.py`
+rebuilds it from the ROM and the three script modules, so it can never drift from
+what is actually inserted. Editing a cell will not change the ROM — put the
+English in `build/script_a.py`, `script_b.py` or `script_c.py` and regenerate.
+
 | Column | |
 |---|---|
 | ID / ROM / CPU | where the string lives |
 | Bytes | original size; stay at or under it for in-place insertion |
+| Status | `done` if this string is inserted |
 | Japanese | decoded, with control codes as `<...>` tokens |
-| English | type here |
+| English | green where inserted, yellow where still open |
 | Raw hex | the original bytes |
 
 Rules:
@@ -24,6 +30,20 @@ Rules:
 
 `tools/wmtool.py` has `decode()`, `text()` and `encode()` for round-tripping.
 `encode()` accepts kanji and emits `$1E xx`.
+
+## Display width, not just bytes
+
+Two limits apply and they are independent. The **byte budget** is what the string
+must fit in the ROM, and the dictionary buys headroom there. The **display width**
+is what the window can show, and no amount of compression helps:
+
+    dialogue box       14 cells   28 half-width characters
+    map nameplate       5 cells   10 half-width characters
+    menu window rows   11 or 14 cells, and must come out whole
+
+`build/build.py` asserts the nameplate and the menu rows. Where a name will not
+fit, use a manufactured glyph rather than truncating — `<G80>` is a house, and
+the place names use it for "X's house".
 
 ## Block A
 
@@ -88,20 +108,31 @@ English does not fit the original byte budgets. Japanese kana carry a whole
 syllable per byte, so a literal translation of a block C string runs two to three
 times its original size — 86 of 103 strings overflowed on the first pass.
 
-`$1E` used to be the kanji escape. With the script in ASCII the kanji bank is
-dead, so `$1E nn` now prints **dictionary entry nn** by re-entering the
-interpreter at `$954F`, the same way `$02` prints a name. Any word costs two
-bytes however long it is.
+`$0E nn` prints **dictionary entry nn** by re-entering the interpreter at
+`$954F`, the same way `$02` prints a name. Any word costs two bytes however long
+it is.
 
-    $3E:A000   512 x uint16 pointer table    ROM $1F2000
-    $3E:A400   entries, $00 terminated       ROM $1F2400
+It was originally on `$1E`, the kanji escape, and that was a mistake: untranslated
+Japanese is full of `$1E xx`, so every untranslated string expanded whole English
+phrases mid-sentence and overran its window - the village exit sign read "I love
+this village" and leaked letters across the map. `$0E` was unhandled by the
+original engine, so nothing in the script uses it. `$1E` now consumes its
+argument and draws nothing, and the comparison `$0E` took over was `$01`, a
+no-op, so untranslated strings containing `$01` end early instead of looping.
 
-Slots 0-254 are reached with `$1E nn` at two bytes. Slot 255 is an escape: `$1E
-$FF nn` reaches slots 256-511 at three bytes. `build/dictionary.py` picks entries
+    $3E:A000   768 x uint16 pointer table    ROM $1F2000
+    $3E:A600   entries, $00 terminated       ROM $1F2600
+
+Slots 0-253 are reached with `$0E nn` at two bytes. Slots 254 and 255 are
+escapes: `$0E $FF nn` reaches 256-511 and `$0E $FE nn` reaches 512-767, both at
+three bytes. `build/dictionary.py` picks entries
 greedily by bytes saved, then `fit()` forces extra entries until every string is
-under budget. Forced entries go to the *front* of the list so they land in the
-cheap bank — the strings that need one are exactly those with no budget to spare.
-Blocks A, B and C together use 444 entries and 4,764 bytes.
+under budget. Then `reorder()` ranks every entry by the smallest budget that references it, so
+the entries a three-byte string depends on land in the cheap bank — a three-byte
+budget can only afford a two-byte reference. Ranking moves entries between banks
+and can push a string that fitted back over, so the two steps run alternately
+until nothing overflows. Blocks A, B and C together use 599 entries and 7,908
+bytes.
 
 Consequence: any **untranslated** Japanese string still containing `$1E xx` now
 expands a dictionary entry instead of drawing a kanji. Harmless — entries are

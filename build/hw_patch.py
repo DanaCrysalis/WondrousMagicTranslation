@@ -169,12 +169,23 @@ emit(0x60)                       # RTS
 # because Japanese kana carry far more meaning per byte.
 label('DICT')
 emit(0x20, 0x59, 0x98)           # JSR $9859      entry index
-emit(0xC9, 0xFF)                 # CMP #$FF       $FF escapes to the second bank
-emit(0xF0); rel_at('DICT2')      # BEQ DICT2
+emit(0xC9, 0xFF)                 # CMP #$FF       $FF and $FE escape to the
+emit(0xF0); rel_at('DICT2')      # BEQ DICT2      second and third banks
+emit(0xC9, 0xFE)                 # CMP #$FE
+emit(0xF0); rel_at('DICT3')      # BEQ DICT3
 emit(0x8B)                       # PHB
 emit(0x5A)                       # PHY            save the outer script pointer
 emit(0xC2, 0x30)                 # REP #$30
 emit(0x29, 0xFF, 0x00)           # AND #$00FF
+emit(0x80); rel_at('DCOMMON')    # BRA DCOMMON
+label('DICT3')
+emit(0x20, 0x59, 0x98)           # JSR $9859      low byte of a 512+ index
+emit(0x8B)                       # PHB
+emit(0x5A)                       # PHY
+emit(0xC2, 0x30)                 # REP #$30
+emit(0x29, 0xFF, 0x00)           # AND #$00FF
+emit(0x18)                       # CLC
+emit(0x69, 0x00, 0x02)           # ADC #$0200
 emit(0x80); rel_at('DCOMMON')    # BRA DCOMMON
 label('DICT2')
 emit(0x20, 0x59, 0x98)           # JSR $9859      low byte of a 256+ index
@@ -270,9 +281,26 @@ def patch(rom_off, data, expect=None):
 
 ROM[BASE:BASE+len(code)] = code
 
-# $1E kanji escape -> dictionary reference
+# Dictionary escape moved from $1E to $0E.
+#
+# $1E was the kanji escape, and untranslated Japanese is full of it. Pointing it
+# at the dictionary meant every untranslated string expanded whole English
+# phrases mid-sentence and overran its window. $0E was unhandled - it fell
+# through the CMP chain and ended the string - so nothing in the original script
+# uses it, and it is safe to claim.
+#
+# The comparison it takes over is $01, a no-op that looped. Untranslated strings
+# containing $01 now end early instead of looping, which is a far milder failure
+# than a text leak.
+patch(0x0815BB, bytes([0xC9, 0x0E, 0xF0, 0x10]),     # CMP #$0E / BEQ $95CF
+      expect=[0xC9, 0x01, 0xF0, 0xBD])
 patch(0x0815CF, bytes([0x4C, labels['DICT'] & 0xFF, labels['DICT'] >> 8]),
       expect=[0x20, 0x59, 0x98])
+# $1E now consumes its argument and draws nothing, so leftover kanji escapes in
+# untranslated text cost one skipped byte instead of a wrong glyph.
+patch(0x081587, bytes([0xF0, 0x49]), expect=[0xF0, 0x46])          # BEQ $95D2
+patch(0x0815D2, bytes([0x20, 0x59, 0x98, 0x80, 0xA5]),             # JSR $9859 / BRA $957C
+      expect=[0xEB, 0xA9, 0x10, 0x80, 0x28])
 # renderer: $90:9608  PHA / AND #$11   ->  JMP RENDER
 patch(0x081608, bytes([0x4C, labels['RENDER'] & 0xFF, labels['RENDER'] >> 8]),
       expect=[0x48, 0x29, 0x11])

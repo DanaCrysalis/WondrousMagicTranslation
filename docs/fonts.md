@@ -27,6 +27,19 @@ that wrong makes every name misread — リンクル comes out as ロルクワ, 
 In the English build the text bank holds single Latin letters and the kanji bank
 holds letter pairs. See `screens.md`.
 
+## One sheet, three fonts
+
+`assets/halfwidth_font_sheet.png` is the single source. `build/glyphs.py` loads
+it and every font in the build is derived from it, so the dialogue, the intro
+crawl and the title screen cannot drift apart:
+
+    half-width   $3E:9000   8x16, one glyph per cell     dialogue engine
+    pairs        $27:8000   16x16, two letters per cell  intro crawl
+    pairs        $0AB000    16x16, two letters per cell  menus and prompts
+    singles      $0A8000    16x16, one letter centred    name entry chart
+
+Redraw the sheet and rebuild; nothing else needs touching.
+
 ## Half-width ASCII — ROM `$1F1000` (`$3E:9000`), 97 glyphs
 
 8×16, 2bpp, 32 bytes per glyph: top tile then bottom tile, linear at `g * 32`.
@@ -35,19 +48,30 @@ half-width space; both blank.
 
 Read only by `COPYCELL` in the patched dialogue engine.
 
-Edit it with `tools/font_tool.py`:
-
-    python3 tools/font_tool.py          # exports sheet + guide from the built ROM
+`tools/font_tool.py` exports the sheet and a magnified guide back out of a built
+ROM, which is how to check an import landed.
 
 `assets/halfwidth_font_sheet.png` is the editable one — 128×96, 16 columns × 6
 rows of 8×16 cells, no gaps, index = `row*16 + column`. Three colours: `#000000`
 background, `#808080` shadow, `#FFFFFF` body; anything else snaps to the nearest
 by brightness. `halfwidth_font_guide.png` is a magnified reference, not an input.
 
+## Manufactured glyphs
+
+The descriptor carries a 7-bit glyph index, so `h` runs to 127 and the font
+region reaches `$1F1FE0` — just short of the dictionary table. `h` 1-95 come from
+the sheet; anything above is drawn in code, in `SYMBOLS` in `build/glyphs.py`.
+
+Script byte is `h + $1F`, so these sit at `$80` upward and are written `<G80>`.
+So far there is one: a house, because the world map nameplate holds only ten
+half-width characters and "Cruel's house" is thirteen — the overflow wrapped a
+stray letter onto the next line.
+
 ## Intro crawl pair font — ROM `$138000` (`$27:8000`)
 
 16×16 in the same split layout as the Japanese font, each glyph holding two
-half-width letters. 170 glyphs, generated at build time from the crawl text.
+half-width letters from the sheet. 170 glyphs, generated at build time from the
+crawl text.
 
 The crawl renderer corrupts the last glyph of a record once a record exceeds about
 eight glyphs, so it cannot be converted to half-width the way the dialogue engine

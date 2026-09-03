@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import paths
 
 import sys
-from PIL import Image, ImageDraw, ImageFont
+import glyphs
 from rux import decompress, compress
 
 ROM = bytearray(open(paths.ROM_IN,'rb').read())
@@ -29,7 +29,6 @@ ARCHIVE = 0x132000
 FONT = 0x138000                   # $27:8000, free
 POEM_BODY = (0x0000, 0x07A8)
 PROL_BODY = (0x07AA, 0x0F8C)
-TTF = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf', 11)
 
 POEM = [
     "Let us meet again",
@@ -111,27 +110,8 @@ def build(lines, budget_words):
 
 
 def write_font():
-    """Glyph g at FONT + (g>>3)*$200 + (g&7)*32, halves $100 apart - the layout
-    the untouched address math at $A6:8844 already produces."""
-    for pair, g in pairs.items():
-        img = Image.new('L', (16, 16), 0)
-        d = ImageDraw.Draw(img)
-        for i, ch in enumerate(pair):
-            if ch != ' ':
-                d.text((i * 8, 2), ch, font=TTF, fill=255)
-        px = [[3 if img.getpixel((x, y)) > 110 else 0 for x in range(16)] for y in range(16)]
-        base = FONT + (g >> 3) * 0x200 + (g & 7) * 32
-        for half in (0, 1):                       # top rows, then bottom rows
-            for tx in (0, 1):                     # left tile, right tile
-                dst = base + half * 0x100 + tx * 16
-                for y in range(8):
-                    p0 = p1 = 0
-                    for x in range(8):
-                        v = px[half * 8 + y][tx * 8 + x]
-                        p0 |= (v & 1) << (7 - x)
-                        p1 |= ((v >> 1) & 1) << (7 - x)
-                    ROM[dst + y * 2] = p0
-                    ROM[dst + y * 2 + 1] = p1
+    for pr, g in pairs.items():
+        glyphs.write_16(ROM, FONT, g, glyphs.pair(pr[0], pr[1]))
 
 
 def patch(off, data, expect):

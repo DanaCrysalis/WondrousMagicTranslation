@@ -26,12 +26,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import paths
 
 import sys
-from PIL import Image, ImageDraw, ImageFont
+import glyphs
 
 FONT = 0x0A8000
 TABLE = 0x141000
 ATTR = 0x1C00
-TTF = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf', 11)
 
 # string offset -> (English, original byte length including terminator)
 STRINGS = {
@@ -157,8 +156,8 @@ def apply(rom):
 
     # single letters: code = ASCII - $20
     for c in range(0x01, 0x5F):
-        write_glyph(rom, c, draw_single(chr(c + 0x20)))
+        glyphs.write_16(rom, FONT, c, glyphs.single(chr(c + 0x20)))
     # letter pairs
-    for pair, g in pairs.items():
-        write_glyph(rom, g, draw_pair(pair))
+    for pr, g in pairs.items():
+        glyphs.write_16(rom, FONT, g, glyphs.pair(pr[0], pr[1]))
     return len(pairs)

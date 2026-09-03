@@ -1,4 +1,6 @@
-- `Wondrous_Magic_script.xlsx` — blocks A, B, C with glossary; the translation worksheet
+- `Wondrous_Magic_script.xlsx` — every string with its English, glossary and control codes.
+  Rebuild with `python3 tools/make_spreadsheet.py`; do not hand-edit, the English lives
+  in `build/script_a.py`, `script_b.py` and `script_c.py`.
 - `script_dump.txt` — the same script as plain text
 - `system_strings.txt` — decoded title / name entry / save-menu strings
 - `prologue_script.txt` — intro poem and prologue, Japanese and English

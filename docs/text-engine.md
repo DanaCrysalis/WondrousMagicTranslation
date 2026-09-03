@@ -21,7 +21,7 @@ and reloads `Y = $8000`, so strings cross LoROM bank boundaries correctly.
 | Byte | Handler | Args | Meaning |
 |---|---|---:|---|
 | `$00` | — | 0 | **end of string** |
-| `$01` | `$95BD` | 0 | no-op |
+| `$01` | — | 0 | no-op originally; the patch reuses its comparison for `$0E` |
 | `$02` | `$9751` | 2 | print name via the `$7E:3208` pointer table |
 | `$03` | `$978B` | 2 | 7-digit decimal |
 | `$04` | `$9787` | 2 | 8-digit decimal |
@@ -35,7 +35,8 @@ and reloads `Y = $8000`, so strings cross LoROM bank boundaries correctly.
 | `$0C` | `$96F5` | 1 | `JSL $00:FB7C`; arg 3 → `JSL $10:D7AD` |
 | `$0D` | `$96BE` | 0 | **newline** |
 | `$0E-$1D` | — | 0 | unhandled, exits like `$00` |
-| `$1E` | — | 1 | kanji glyph, index = argument |
+| `$0E` | `$95CF` | 1 | patched in: expand dictionary entry |
+| `$1E` | `$95D2` | 1 | kanji glyph originally; patched to consume its argument and draw nothing |
 | `$1F` | — | 1 | UI glyph, index = arg & `$7F`, X-flip on bit 7 |
 | `$20-$DF` | — | 0 | text glyph, index = byte − `$20` |
 | `$E0-$FF` | table `$081675` | 0 | window frame, fixed glyph plus flips |

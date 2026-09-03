@@ -114,7 +114,9 @@ def encode(s):
             j = s.index('}', i); out += bytes([0x1E, int(s[i+1:j], 16)]); i = j+1; continue
         if c == '<':
             j = s.index('>', i); body = s[i+1:j]; i = j+1
-            if body.startswith('S'):   out += bytes([0x1F, int(body[1:], 16)]); continue
+            if body.startswith('G'):
+                out.append(int(body[1:], 16))
+            elif body.startswith('S'):   out += bytes([0x1F, int(body[1:], 16)]); continue
             if body.startswith('E'):   out.append(int(body[1:], 16)); continue
             if body.startswith('END'): out.append(int(body[3:], 16)); continue
             nm, _, arg = body.partition(':')
@@ -169,7 +171,9 @@ def encode_en(s):
             out.append(0x7F); i += 1
         elif c == '<':
             j = s.index('>', i); body = s[i+1:j]; i = j + 1
-            if body.startswith('S'):
+            if body.startswith('G'):
+                out.append(int(body[1:], 16))
+            elif body.startswith('S'):
                 out += bytes([0x1F, int(body[1:], 16)])
             elif body.startswith('E'):
                 out.append(int(body[1:], 16))
@@ -195,7 +199,9 @@ def cells(s):
     while i < len(s):
         c = s[i]
         if c == '<':
-            i = s.index('>', i) + 1; continue
+            j = s.index('>', i) + 1
+            n += 0.5 if s[i+1] == 'G' else 0.0        # a manufactured glyph is half a cell
+            i = j; continue
         if c == '\n':
             i += 1; continue
         n += 1.0 if c == '\u3000' else 0.5
