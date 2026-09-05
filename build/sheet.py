@@ -28,7 +28,7 @@ import wmtool
 
 BOOK = os.path.join(paths.DATA, 'Wondrous_Magic_script.xlsx')
 
-BLOCK_A = (0x0912C0, 0x092FE0)
+BLOCK_A = (0x0912C0, 0x092FDF)
 
 _cache = {}
 
@@ -105,7 +105,10 @@ def block_a():
         # name will not fit that, the icon run simply shifts left - it only has
         # to stay inside the 14-cell window.
         icons = icons.replace('＋', '+').replace('−', '-').replace('？', '?')
-        pad = max(1, 2 * len(re.sub(r'<[^>]*>', '', jp_name)) - len(en_name))
+        if icons:
+            pad = max(1, 2 * len(re.sub(r'<[^>]*>', '', jp_name)) - len(en_name))
+        else:
+            pad = 0          # nothing to line up, so the padding is dead weight
         line = en_name + ' ' * pad + icons
         width = len(re.sub(r'<[^>]*>', '', line)) * 0.5 + line.count('<S')
         if width > 14:

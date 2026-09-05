@@ -71,13 +71,25 @@ def string_len(rom, off):
 
 
 def put(rom, off, codes, budget):
-    """Write codes, pad with blank pairs, keep the byte length identical."""
+    """Write codes, pad with blank pairs, keep the byte length identical.
+
+    Every one of these strings ends in a control word - $30E raw, $30D once the
+    +1 is taken off, the same row terminator the name entry chart uses. Writing
+    blanks over it left the row unterminated, which is what took the chunks out
+    of the Options border. Hold any trailing control back and put it on the end.
+    """
     blank = pair_code('  ')
-    words = list(codes)
-    assert (len(words) + 1) * 2 <= budget, (off, len(words), budget)
-    words += [blank] * (budget // 2 - 1 - len(words))
-    data = b''.join(((c + ATTR + 1) & 0xFFFF).to_bytes(2, 'little') for c in words)
-    rom[off:off + budget] = data + b'\x00\x00'
+    cells = budget // 2 - 1
+    orig = [rom[off + i] | rom[off + i + 1] << 8 for i in range(0, budget - 2, 2)]
+    tail = []
+    while orig and ((orig[-1] - 1) & 0x3FF) >= 0x1C0:
+        tail.insert(0, orig.pop())
+    words = [(c + ATTR + 1) & 0xFFFF for c in codes]
+    assert len(words) + len(tail) <= cells, (off, len(words), len(tail), cells)
+    words += [(blank + ATTR + 1) & 0xFFFF] * (cells - len(words) - len(tail))
+    words += tail
+    data = b"".join(w.to_bytes(2, "little") for w in words)
+    rom[off:off + budget] = data + b"\x00\x00"
 
 
 def draw_single(ch):

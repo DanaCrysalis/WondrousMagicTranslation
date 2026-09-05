@@ -113,18 +113,17 @@ emit(0x60)                       # RTS            cursor does not advance
 # ----------------------------------------------------------------- newline --
 # hook replaces "JSR $9841" at $96CC
 label('NEWNL')
-emit(0x20, 0x41, 0x98)           # JSR $9841      recompute X for the new row
-emit(0xC2, 0x20)                 # REP #$20
-emit(0xBF, 0x00, 0x2C, 0x7E)     # LDA $7E2C00,X
-emit(0x89, 0x01, 0x00)           # BIT #$0001     only a text cell may be cleared -
-emit(0xF0); rel_at('NLDONE')     # BEQ NLDONE     never a window frame piece
-emit(0x89, 0x00, 0xFB)           # BIT #$FB00     a finished cell is safe to overwrite
-emit(0xD0); rel_at('NLDONE')     # BNE NLDONE
-emit(0xA9, 0x00, 0x00)           # LDA #$0000     stale half-open cell: clear it
-emit(0x9F, 0x00, 0x2C, 0x7E)     # STA $7E2C00,X
-label('NLDONE')
-emit(0xE2, 0x20)                 # SEP #$20
-emit(0x60)                       # RTS
+# This used to recompute X for the NEW row first and then clear the cell there,
+# which meant it never touched the half-open cell it was leaving behind - that
+# cell is on the row we are moving off. Close the old one, then recompute.
+#
+# Close, not clear: the character sitting in the left half is real text. Cure
+# Herb is nine letters, so its last cell is half open, and clearing it would
+# take the b off the description. Filling the right half with a blank leaves the
+# b visible and makes the cell complete, so whatever draws next overwrites it
+# instead of moving into its free half.
+emit(0x20); word_at('CELL')      # JSR CELL       close the cell we are leaving
+emit(0x4C, 0x41, 0x98)           # JMP $9841      recompute X for the new row
 
 # ------------------------------------------------------------ name padding --
 # $9751 pads the name field to a whole number of cells: pad = arg + old $AE - new $AE.
@@ -157,9 +156,47 @@ emit(0x4C, 0x59, 0x98)           # JMP $9859   read the width byte and return
 label('HIATTR')
 emit(0xBD, 0x00, 0x2C)           # LDA $2C00,X    descriptor
 emit(0x29, 0x00, 0x04)           # AND #$0400     the cursor's bit
-emit(0x09, 0x00, 0x2C)           # ORA #$2C00     palette 2 / priority
+# $2C00 already had bit 10 set, so it swallowed the bit we had just masked out
+# and every row came out palette 3 - the highlight stopped changing colour.
+# Palette 2 plus priority is $2800, and bit 10 arrives from the descriptor.
+#
+# The menu leaves bit 10 set on the rows it is NOT on and clears it on the one
+# it is, so the bit has to be flipped or the highlight lands on every row but
+# the selected one.
+emit(0x49, 0x00, 0x04)           # EOR #$0400     selected row, not the others
+emit(0x09, 0x00, 0x28)           # ORA #$2800     palette 2 / priority
 emit(0x05, 0xA8)                 # ORA $A8        tile from the position math
 emit(0x60)                       # RTS
+
+# ------------------------------------------------------------- close cell --
+# A field that ends on a half-open cell used to survive into the next screen.
+# The stale cell still has bit 0 set and no right half, so the first half-width
+# character of whatever drew next was taken as its RIGHT half - the old digit
+# stayed put on the left and everything after it shifted by half a cell. That is
+# the status screen leaking into the main menu.
+#
+# Both the cursor move ($09) and the window setup ($07) close the current cell
+# first, so a screen can never hand a half-open one to its successor. Same
+# blank-h-96 fill the static path already uses.
+label('CELL')                    # close a half-open cell, nothing else
+emit(0xC2, 0x20)                 # REP #$20
+emit(0xBF, 0x00, 0x2C, 0x7E)     # LDA $7E2C00,X
+emit(0x89, 0x01, 0x00)           # BIT #$0001     a text cell at all?
+emit(0xF0); rel_at('CLDONE')     # BEQ CLDONE
+emit(0x89, 0x00, 0xFB)           # BIT #$FB00     right half already used?
+emit(0xD0); rel_at('CLDONE')     # BNE CLDONE
+emit(0x09, 0x00, 0xC0)           # ORA #$C000     close it with a blank
+emit(0x9F, 0x00, 0x2C, 0x7E)     # STA $7E2C00,X
+emit(0xE6, 0xAA)                 # INC $AA        row is dirty - $9631 does this
+                                 # on every ordinary advance, and without it the
+                                 # descriptor changes but the tilemap does not
+label('CLDONE')
+emit(0xE2, 0x20)                 # SEP #$20
+emit(0x60)                       # RTS
+
+label('CLOSE')                   # for the $07 and $09 handlers
+emit(0x20); word_at('CELL')      # JSR CELL
+emit(0x4C, 0x6A, 0x98)           # JMP $986A      what both handlers did first
 
 # --------------------------------------------------------------- dictionary --
 # $1E used to be the kanji escape. With the script in ASCII the kanji bank is
@@ -320,6 +357,58 @@ patch(0x081A6B, bytes([0x4C, labels['NEWUP'] & 0xFF, labels['NEWUP'] >> 8]),
 patch(0x081ACB, bytes([0x4C, labels['HIATTR'] & 0xFF, labels['HIATTR'] >> 8]) + b'\xea' * 5,
       expect=[0xBD, 0x00, 0x2C, 0x29, 0x00, 0xFC, 0x05, 0xA8])
 
+# $97E8 - the decimal printer builds each digit with ADC #$A2, the Japanese
+# font's glyph index for '0'. What $9605 takes is an index, not a script byte:
+# RENDER does INC A to get h, and glyph h draws ASCII h + $1F. So '0' at ASCII
+# $30 wants h = $11, hence index $10.
+#
+# The index is masked to seven bits downstream, so $A2 came out as $22 and drew
+# ASCII $42 - digit d rendered as chr($42 + d). That is exactly what the
+# screenshots show: 1 experience printed as 'C', a zero on the status screen as
+# 'B'. It accounted for every number in the game.
+patch(0x0817E9, bytes([0x10]), expect=[0xA2])
+
+# $91:D033 and $91:D077 - the status screen's health and prayer separators.
+# These live in a fourth text block at $08D023-$08D08E that is in none of the
+# script blocks and has never been in the workbook. Byte $D9 is the full-width
+# slash; the text path subtracts $20 for the index, so it drew ASCII $59 and the
+# health read "295Y300". ASCII '/' is $2F. The slot length does not change.
+#
+# The rest of that block is cursor positions, stat icons and number fields, and
+# it still needs folding into the spreadsheet properly.
+patch(0x08D033, bytes([0x2F]), expect=[0xD9])
+patch(0x08D077, bytes([0x2F]), expect=[0xD9])
+
+# ---------------------------------------------------------- battle names --
+# Monster names are glyph indices into a 16x16 katakana font (ROM $152000,
+# LZSS, unpacks $2000 to $7E:4000) with the table at $153000: 63 entries of six
+# bytes, null padded. The drawing routine is $81:F9D4 and the per-glyph DMA
+# constants are all in $81:FA38-$FAB0:
+#
+#     $FA41  the sixth ASL      index * 64, the glyph stride
+#     $FA74  LDX #$0020         top half transfer size
+#     $FA98  LDA #$4020         bottom half source base
+#     $FAA9  LDX #$0020         bottom half transfer size
+#
+# Halving those four turns each glyph into an 8x16 half-width cell and gives the
+# block 256 slots instead of 128 - enough for a Latin font with no pair coding.
+# Tried and reverted: the glyphs came out overlapping, because the VRAM
+# destination step per glyph is computed at $FA18-$FA44 from the caller's tile
+# coordinates and still assumes a two-tile-wide cell. That sum has to halve too,
+# and the caller at $F9DC increments $084A and $084B once per glyph, so the
+# stride is not a constant sitting in this routine.
+#
+# Also needed before the loop count at $F9D4 (CPX #$0006) can go to twelve: the
+# name table restriped to 12-byte entries and relocated, since 63 * 12 = 756
+# bytes will not fit where 378 do, and its stride lives inside $01:DD71.
+
+# $9738 - the $09 cursor move, and $970B - the $07 window setup. Both opened
+# with JSR $986A; they now go through CLOSE, which does the same thing after
+# closing any half-open cell left behind by the previous field or screen.
+patch(0x081738, bytes([0x20, labels['CLOSE'] & 0xFF, labels['CLOSE'] >> 8]),
+      expect=[0x20, 0x6A, 0x98])
+patch(0x08170B, bytes([0x20, labels['CLOSE'] & 0xFF, labels['CLOSE'] >> 8]),
+      expect=[0x20, 0x6A, 0x98])
 if __name__ == '__main__':
     print('new code %d bytes at ROM $%06X ($90:%04X)' % (len(code), BASE, ORG))
     for n in sorted(labels, key=lambda k: labels[k]):

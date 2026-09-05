@@ -139,9 +139,20 @@ PTR_TABLES = [
 
 TEXT_BLOCKS = [
     ('C', 0x090000, 0x090EF6),   # menus, windows, status/system text (bank $92 $8000)
-    ('A', 0x0912C0, 0x0976C5),   # item / spell / equipment text
+    ('A', 0x0912C0, 0x092FDF),   # item / spell / equipment text
+    ('D', 0x09316E, 0x093943),   # Rinkle's area hints, table at $0930F7
     ('B', 0x098340, 0x0A5625),   # main story script
+    ('E', 0x08D023, 0x08D08E),   # status screen layout, bank $91
 ]
+
+# Block A used to be given as $0912C0-$0976C5, but the item text stops at
+# $092FDF and its pointer table at $090F00 covers only that far - 297 entries
+# ending at $092FD3. Past it the bank holds map data with one island of script
+# in it: 51 hint strings with their own table at $0930F7. Walking the whole
+# range as text turned that data into thousands of phantom "strings".
+#
+# Block E is the status screen, in bank $91 and nowhere near the others. It is
+# reached by literal LDA #$11 / LDX #$D0xx, so those strings cannot move.
 
 if __name__ == '__main__':
     for name, a, b in TEXT_BLOCKS:
@@ -171,7 +182,13 @@ def encode_en(s):
             out.append(0x7F); i += 1
         elif c == '<':
             j = s.index('>', i); body = s[i+1:j]; i = j + 1
-            if body.startswith('G'):
+            if ':' in body:
+                # a control code with arguments - test this before the glyph
+                # prefixes, or <SFX:07> is read as symbol $FX
+                nm, _, arg = body.partition(':')
+                out.append(next(k for k, v in CTRL.items() if v[0] == nm))
+                out += bytes.fromhex(arg)
+            elif body.startswith('G'):
                 out.append(int(body[1:], 16))
             elif body.startswith('S'):
                 out += bytes([0x1F, int(body[1:], 16)])

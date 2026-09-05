@@ -98,6 +98,24 @@ that width the icons simply shift left; the builder only asserts the line stays
 inside the 14-cell window. Full-width `＋`, `−` and `？` in the icon run are
 mapped to ASCII, which buys back half a cell each.
 
+## Block D — the area hints
+
+51 strings at `$09316E`, Rinkle's monster-by-monster advice, reached through a
+51-entry table at `$0930F7` of absolute `$92:xxxx` addresses. `build/blockd.py`
+repacks them across two extents — their own slot and the free `$0976C5-$098000`
+after block A — so length is not a constraint. English runs about 1.5x here,
+which the original 2,005-byte slot would not take.
+
+## Block E — the status screen
+
+14 strings at `$08D023`, in bank `$91`, reached by literal `LDA #$11 / LDX #$D0xx`
+so they cannot move. They hold only `<C09>` cursor positions, `<S33>`-`<S3A>`
+stat icons, `<NUM7>` fields and the word `Lev.` — nothing to translate. Two of
+them held a full-width slash `$D9` for the health separator, patched to `$2F`.
+
+Every field on that screen is positioned in whole cells while the digits inside
+are half-width, so labels abutting a number want an even character count.
+
 ## Blocks B and C
 
 Authored directly in the `Script` sheet: what is in the English column is what

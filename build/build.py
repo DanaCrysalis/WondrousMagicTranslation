@@ -65,11 +65,20 @@ if __name__ == '__main__':
         rom[off:off+1] = data
 
     # 5. blocks A, B and C - all of it out of the workbook
-    import sheet, dictionary, wmtool
+    import sheet, dictionary, wmtool, blockb, blockd
     strings = sheet.text()
     block_c = {off: en for off, en in strings.items() if off < 0x090EF6}
+    # Blocks A and C are written back in place, so their lengths are fixed and
+    # the dictionary has to make them fit. Block B is repacked and its pointer
+    # table rewritten, so it has no per-string budget at all - it still feeds
+    # the entry search, it just does not constrain it.
+    # Blocks A, C and E are written back in place. Blocks B and D are repacked
+    # against their own pointer tables, so their lengths are free.
+    loose = set(range(blockd.START, blockd.END)) | {blockb.START}
+    fixed = {off: en for off, en in strings.items()
+             if off < blockb.START and off not in loose}
     budgets = []
-    for off, en in sorted(strings.items()):
+    for off, en in sorted(fixed.items()):
         _, end = wmtool.decode(off)
         budgets.append((en, end - off))
     import re
@@ -83,18 +92,37 @@ if __name__ == '__main__':
         if off in block_c:                              # half-width characters
             w = wmtool.cells(block_c[off]) * 2
             assert w <= 10, '%06X: nameplate %s wide' % (off, w)
-    entries = dictionary.fit(budgets, dictionary.choose([t for t, _ in budgets], count=300))
+    free = [en for off, en in sorted(strings.items()) if off not in fixed]
+    # `free` is everything that gets repacked, so the ceiling is the sum of the
+    # room both packers have. They each assert their own extents afterwards.
+    room = (blockb.LIMIT - blockb.START) + sum(hi - lo for lo, hi in blockd.EXTENTS)
+    entries = dictionary.fit_mixed(budgets, free, room)
     dsize = dictionary.write(rom, entries)
-    for off, en in sorted(strings.items()):
+    over = []
+    for off, en in sorted(fixed.items()):
         _, end = wmtool.decode(off)
         data = dictionary.encode(en, entries)
-        assert len(data) <= end - off, '%06X over budget' % off
+        if len(data) > end - off:
+            over.append((len(data) - (end - off), off, en))
+            continue
         rom[off:off + len(data)] = data
         for i in range(off + len(data), end):
             rom[i] = 0x00
-    print('blocks A+B+C: %d strings from the workbook, '
-          'dictionary %d entries / %d bytes'
-          % (len(strings), len(entries), dsize))
+    if over:
+        over.sort(reverse=True)
+        print('OVER BUDGET: %d of %d fixed-length strings, dictionary %d/%d entries'
+              % (len(over), len(fixed), len(entries), dictionary.MAX_ENTRIES))
+        for n, off, en in over[:25]:
+            print('  $%06X  +%d bytes  %r' % (off, n, en[:60]))
+        raise SystemExit('nothing written')
+    used, spare = blockb.build(rom, strings, entries)
+    dused, dspare = blockd.build(rom, strings, entries)
+    print('blocks A+C: %d strings in place, dictionary %d entries / %d bytes'
+          % (len(fixed), len(entries), dsize))
+    print('block B: %d strings repacked into %d bytes, %d spare, table rewritten'
+          % (sum(1 for o in strings if o >= blockb.START), used, spare))
+    print('block D: %d hints repacked into %d bytes, %d spare, table rewritten'
+          % (sum(1 for o in strings if blockd.START <= o < blockd.END), dused, dspare))
 
     # 6. title screen and name entry
     import systext

@@ -111,6 +111,46 @@ mistakes worth remembering:
 ## Script pointers
 
 Block C strings are reached through stubs at `$90:920C` onward, each
-`LDA #$12 / LDX #offset`. Block B is addressed some other way — there is no
-`LDA #$13` anywhere in the ROM — so relocating story strings is still an open
-problem, and translations have to fit their original byte length.
+`LDA #$12 / LDX #offset`. Block A, B and D are table-driven — see
+`docs/memory-map.md` for the tables and `build/blockb.py` / `build/blockd.py` for
+the packers that rewrite them.
+
+**Block B's table is at `$098000`**, immediately before the block itself: 416
+entries of 16 bits, each one `target - $098000`. `$90:94CA` turns a scene index
+into a pointer:
+
+    TXA / ASL / TAX          index * 2
+    CLC
+    LDA #$8000
+    ADC $138000,X            CPU $13:8000 = ROM $098000
+    ORA #$8000               back into the top half of the bank
+    TAX
+    LDA #$13 / ADC #$00      bank $93, plus the carry out of the add
+
+The carry is what lets block B run from bank `$93` into `$94` with two bytes per
+entry. Of the 60 call sites of the interpreter, not one loads bank `$93` or `$94`
+as a literal, so rewriting the table is enough — story strings can be any length
+and sit anywhere in `$098340-$0A7FFF`, which is what the displacement reaches.
+
+Four entries point into the *middle* of a string, which the engine is happy to
+do; `blockb.py` encodes those strings in pieces so the resume points can be
+recomputed.
+
+The reason this went unfound for so long: the entries are displacements, not
+absolute addresses, so searching for string offsets at any stride finds nothing.
+
+## Other things worth knowing
+
+- `encode_en` tested `body.startswith('S')` before the control-code branch, so
+  `<SFX:07>` parsed as symbol `$FX`. Fixed by testing for `:` first. Nothing had
+  contained an SFX token before, so it had never fired.
+- The decimal printer at `$97E4` builds each digit with `ADC #$A2`, the Japanese
+  font's index for `0`. `$9605` wants an index, not a script byte, and it is
+  masked to seven bits — so digit *d* drew ASCII `$42 + d` and every number in
+  the game came out as a letter. `0` at ASCII `$30` needs index `$10`.
+- A field label that abuts a `<NUM7>` wants an **even** character count. `Next Lv`
+  is seven, so the `v` sat alone in a half-open cell and the number field's
+  leading blank ate it. `Next Lvl` lands on a cell boundary.
+- Battle result messages continue from wherever the cursor stopped. In Japanese
+  the wider text mostly covered what came before; half-width does not, so those
+  strings need an explicit `<PAGE>` or a leading newline.
