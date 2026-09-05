@@ -65,9 +65,16 @@ workbook and hands the build what it used to import. See `docs/translating.md`.
 
 ## Reading order
 
-Start with `docs/handoff-prompt.md` is a ready-made brief for translating block B in a
-fresh session. `docs/text-engine.md` — everything else depends on the descriptor
-format. Then `docs/fonts.md` for the three fonts and who reads which,
-`docs/screens.md` for the title and name entry, `docs/compression.md` for RUX,
-and `docs/memory-map.md` for the full list of patch sites. `docs/assets.md`
-covers the two things that look like text but are graphics.
+`docs/text-engine.md` first — everything else depends on the cell descriptor
+format and the half-width scheme. Then:
+
+| Doc | For |
+|---|---|
+| `docs/translating.md` | how the workbook drives the build, and the rules for writing |
+| `docs/memory-map.md` | blocks, pointer tables, patch sites, debugging notes |
+| `docs/fonts.md` | the fonts and which code reads which |
+| `docs/compression.md` | RUX and the second LZSS |
+| `docs/screens.md` | title screen and name entry |
+| `docs/assets.md` | the nameplates and monster names — graphics, not script |
+
+If you are picking up the remaining work, it is all in `docs/assets.md`.
