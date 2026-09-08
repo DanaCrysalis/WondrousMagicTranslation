@@ -17,7 +17,7 @@ Super Famicom, ASCII / System Sacom, 1993.
 | Block B — story script | **Translated, all 412 strings** |
 | Block D — Rinkle's area hints | Translated, 51 strings |
 | Block E — status screen layout | Tokens only, nothing to translate |
-| World map nameplates | Extracted as PNGs — baked art, not yet redrawn |
+| World map nameplates | PNGs compile back into the ROM; art still Japanese |
 | Monster names | **English** — Latin font, 12-character names, renderer patched |
 
 Blocks B and D are repacked against their pointer tables at build time, so their
@@ -58,8 +58,11 @@ double-applied patch fails loudly instead of producing something subtly broken.
 | crawl | RUX archive `$132000` | 2 | intro poem, prologue |
 
 Not script, and not in any block: the world map nameplates and the battle monster
-names. The names are English now and are authored on the `Monster names` sheet;
-the nameplates are still baked art. See `docs/assets.md`.
+names. The names are English now and are authored on the `Monster names` sheet.
+The nameplates are art — `assets/plates/NN_Name.png`, one file per plate, compiled
+into the ROM on every build, so changing one means editing the PNG. They are
+still the Japanese art; `python3 tools/plates.py draw out/` writes a Latin first
+pass to copy in. See `docs/assets.md`.
 
 `data/Wondrous_Magic_script.ods` **is** the script — the only place English is
 authored. There are no `script_*.py` tables any more; `build/sheet.py` reads the
@@ -79,5 +82,5 @@ format and the half-width scheme. Then:
 | `docs/screens.md` | title screen and name entry |
 | `docs/assets.md` | the nameplates and monster names — graphics, not script |
 
-If you are picking up the remaining work, it is the world map nameplates, in
-`docs/assets.md`.
+If you are picking up the remaining work, it is redrawing the twenty nameplates.
+The pipeline is done; the art is not. See `docs/assets.md`.

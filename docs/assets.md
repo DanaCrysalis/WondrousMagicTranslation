@@ -16,7 +16,15 @@ Compared against the font glyph for 魔, the closest plate character differs in 
 of 256 pixels.
 
     ROM $0B3D68   LZSS, $2800 -> $7E:4000    Sheloon .. Steel
-    ROM $0B4A1E   LZSS, $2800 -> $7E:6800    Darles .. Temple of Shrell
+    ROM $0B4A1E   LZSS, $2800 -> $7E:4000    Darles .. Temple of Shrell
+
+Neither address is a table entry. `$91:8344` compares the plate index against
+ten and loads one of two immediates — `LDX #$BD68` at `$91:8349`, `LDX #$CA1E` at
+`$91:8354`, bank `$16` in the `LDA` after each — then reads the plate from offset
+index × `$400` of whichever block it unpacked. So the two blocks are independent
+of each other and of the seven that follow them in the chain, which are pointed
+at from a table at `$08874E`. The chain walk in `plates.py` is a convenience for
+listing; the game never uses it.
 
 Both blocks hold 16×16 characters in the Japanese font's own arrangement: eight
 characters to a `$400` block, top halves first, bottom halves `$200` further on.
@@ -36,9 +44,27 @@ character *n* × 8.
 
     python3 tools/plates.py list           the block chain
     python3 tools/plates.py export out/    one PNG per plate
+    python3 tools/plates.py draw out/      a Latin first pass, from the filenames
 
-Translating them means redrawing the art and writing a compressor for the format.
-The decompressor is done; the compressor is not.
+`build/build.py` compiles `assets/plates/*.png` back into the ROM on every build,
+so a plate is changed by editing its PNG and rebuilding. The files there are
+still the Japanese art, which makes the step a verified no-op: the round trip
+reproduces every character of both blocks exactly.
+
+Keep a plate 128×16 and paletted, and use only the three indices the art uses —
+`2` body, `8` outline, `9` field. Anything else is rejected by name rather than
+written as a wrong colour.
+
+**Space.** Blocks 0 and 1 are written end to end from `$0B3D68` and must not
+reach `$0B5644`, where the first table-pointed block starts — 6,364 bytes. The
+Japanese art repacks to 6,314. Latin letters compress far better: the drawn
+English set comes to 3,479, leaving about 2,900 spare. Block 1's address is
+patched to wherever block 0 ends, so the two do not have to keep their original
+sizes.
+
+**Width.** Sixteen half-width letters fit across a plate, two to a 16×16 cell.
+Nineteen of the twenty names fit. `Floating Fortress` is seventeen and does not;
+`Flying Fortress` (15) or `Sky Fortress` (12) would.
 
 ## Monster names
 

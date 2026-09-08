@@ -7,6 +7,7 @@
   4. Blocks A, B and C plus the dictionary at $1F2000
   5. Title screen and name entry
   6. Battle monster names       ROM $152000 font, $153000 table, $02:F500 code
+  7. Map nameplates             assets/plates/*.png -> ROM $0B3D68
 
 All English comes from data/Wondrous_Magic_script.ods by way of build/sheet.py.
 There are no script_*.py tables any more.
@@ -131,7 +132,15 @@ if __name__ == '__main__':
     print('monster names: %d entries of %d, font %d bytes (was %d), code %d bytes'
           % (battle_names.ENTRIES, battle_names.WIDTH, fsize, fwas, csize))
 
-    # 7. title screen and name entry
+    # 7. map nameplates - art rather than text, so the PNGs are the source.
+    # Editing a plate means editing assets/plates/NN_Name.png and rebuilding;
+    # `python3 tools/plates.py draw out/` writes a Latin first pass to copy in.
+    import plates
+    psize, pbudget = plates.apply(rom, os.path.join(paths.ASSETS, 'plates'))
+    print('map nameplates: %d plates, %d bytes of %d'
+          % (plates.PLATES, psize, pbudget))
+
+    # 8. title screen and name entry
     import systext
     npairs = systext.apply(rom)
     print('crawl pairs %d, system pairs %d, archive %d bytes, checksum $%04X'
