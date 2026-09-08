@@ -6,6 +6,7 @@
   3. English intro poem/prologue  RUX archive $132000 + pair font $138000
   4. Blocks A, B and C plus the dictionary at $1F2000
   5. Title screen and name entry
+  6. Battle monster names       ROM $152000 font, $153000 table, $02:F500 code
 
 All English comes from data/Wondrous_Magic_script.xlsx by way of build/sheet.py.
 There are no script_*.py tables any more.
@@ -124,7 +125,13 @@ if __name__ == '__main__':
     print('block D: %d hints repacked into %d bytes, %d spare, table rewritten'
           % (sum(1 for o in strings if blockd.START <= o < blockd.END), dused, dspare))
 
-    # 6. title screen and name entry
+    # 6. battle monster names - not script, see build/battle_names.py
+    import battle_names
+    fsize, fwas, csize = battle_names.apply(rom, sheet.monsters())
+    print('monster names: %d entries of %d, font %d bytes (was %d), code %d bytes'
+          % (battle_names.ENTRIES, battle_names.WIDTH, fsize, fwas, csize))
+
+    # 7. title screen and name entry
     import systext
     npairs = systext.apply(rom)
     print('crawl pairs %d, system pairs %d, archive %d bytes, checksum $%04X'

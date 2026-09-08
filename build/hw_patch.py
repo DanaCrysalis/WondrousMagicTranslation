@@ -380,27 +380,11 @@ patch(0x08D033, bytes([0x2F]), expect=[0xD9])
 patch(0x08D077, bytes([0x2F]), expect=[0xD9])
 
 # ---------------------------------------------------------- battle names --
-# Monster names are glyph indices into a 16x16 katakana font (ROM $152000,
-# LZSS, unpacks $2000 to $7E:4000) with the table at $153000: 63 entries of six
-# bytes, null padded. The drawing routine is $81:F9D4 and the per-glyph DMA
-# constants are all in $81:FA38-$FAB0:
-#
-#     $FA41  the sixth ASL      index * 64, the glyph stride
-#     $FA74  LDX #$0020         top half transfer size
-#     $FA98  LDA #$4020         bottom half source base
-#     $FAA9  LDX #$0020         bottom half transfer size
-#
-# Halving those four turns each glyph into an 8x16 half-width cell and gives the
-# block 256 slots instead of 128 - enough for a Latin font with no pair coding.
-# Tried and reverted: the glyphs came out overlapping, because the VRAM
-# destination step per glyph is computed at $FA18-$FA44 from the caller's tile
-# coordinates and still assumes a two-tile-wide cell. That sum has to halve too,
-# and the caller at $F9DC increments $084A and $084B once per glyph, so the
-# stride is not a constant sitting in this routine.
-#
-# Also needed before the loop count at $F9D4 (CPX #$0006) can go to twelve: the
-# name table restriped to 12-byte entries and relocated, since 63 * 12 = 756
-# bytes will not fit where 378 do, and its stride lives inside $01:DD71.
+# Monster names are not part of this engine at all - separate font, separate
+# renderer, separate table. They are done in build/battle_names.py, which is
+# also where the reason the four-DMA-constant halving could never work is
+# written up: BG3 is in 16x16 character mode, so a tilemap cell cannot be
+# eight pixels wide, and the fix is two half-width letters per cell instead.
 
 # $9738 - the $09 cursor move, and $970B - the $07 window setup. Both opened
 # with JSR $986A; they now go through CLOSE, which does the same thing after

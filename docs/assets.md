@@ -42,53 +42,110 @@ The decompressor is done; the compressor is not.
 
 ## Monster names
 
-**Text, not art** — but in their own font, not the game's.
+**Text, not art** — but in their own font, not the game's. Done; this is the
+record of what the stock code did and what replaced it. The build is
+`build/battle_names.py`, the English is on the `Monster names` sheet of the
+workbook, and `tools/checknames.py` executes the patched bytes and renders the
+result if you want to see it without an emulator.
+
+### What was there
 
     ROM $152000   LZSS, $2000 -> $7E:4000   the battle font
     ROM $153000   63 entries of 6 bytes, glyph indices, null padded
 
-The font is 128 slots of 16×16 2bpp, four tiles each in **TL TR BL BR** order —
+The font was 128 slots of 16×16 2bpp, four tiles each in **TL TR BL BR** order —
 not the arrangement the Japanese font uses, which is why it renders as scrambled
-strokes under every other layout. Slots 1-82 hold the full katakana set in gojūon
-order, ア first; slot 0 and 83-127 are blank.
+strokes under every other layout. Slots 1-82 held the full katakana set in
+gojūon order, ア first; slot 0 and 83-127 blank.
 
     ORDER = ('アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨ'
              'ワヲラリルレロンャュョッガギグゲゴザジズゼゾダヂヅデドバビブベボパピプペポ'
              'ァィゥェォヴー')
     glyph index = 1 + ORDER.index(ch)
 
-So `ワービースト` is `27 52 43 52 0D 14`, which appears once in the ROM, at
-`$153018`. The full table is dumped in `monster_names.txt`.
+So `ワービースト` was `27 52 43 52 0D 14` at `$153018`. Six glyphs was the hard
+limit and the Japanese was already truncated by it — `シェルスコ` for Shell
+Scorpion.
 
-Six glyphs is the hard limit and the Japanese is already truncated by it —
-`シェルスコ` for Shell Scorpion.
+### The renderer
 
-### Making them English
+`$81:F869` draws all six plates. Per monster it reads the name index from
+`$0BB5`, multiplies by six, copies the entry into `$084D..$0852`, counts the
+non-zero bytes to centre the plate, sets `$084A` (first VRAM cell) and
+`$084B`/`$084C` (tile coordinates), and calls `$01:F98F`.
 
-The renderer is `$81:F9D4`. Per glyph it fires two DMAs of `$20` bytes: top half
-(TL+TR) to VRAM `$6000`+, bottom half (BL+BR) to `$6080`+, sourced from the font
-at `$7E:4000` with `$0864 = index * 64`.
+`$01:F98F` runs two loops of six:
 
-Halving all of that gives 8×16 half-width cells and turns the `$2000` block into
-**256 glyph slots instead of 128** — the whole Latin alphabet in both cases plus
-digits and punctuation, with no pair encoding needed:
+    $F99B   per glyph, JSL $01:FA18   DMA the bitmap into VRAM
+    $F9D4   per glyph, JSL $01:DD71   write one tilemap entry
 
-    $FA41  the sixth ASL      index * 64 -> * 32
-    $FA74  LDX #$0020         top half, one tile
-    $FA98  LDA #$4020         bottom half source base -> $4010
-    $FAA9  LDX #$0020         bottom half, one tile
+`$01:FA18` computes, for cell `c` = `$084A`,
 
-**Tried, and reverted — the glyphs came out overlapping.** The source stride
-halves correctly, but the VRAM destination step is computed at `$FA18-$FA44` from
-the caller's tile coordinates and still assumes a two-tile-wide cell. That sum has
-to halve too, and it is not a constant in the routine: the caller at `$F9DC`
-increments `$084A` and `$084B` once per glyph. Trace `$FA18` across two
-consecutive glyphs and watch how `$0862` advances.
+    $0862 = ((c & 7) << 4) + ((c & $F8) << 5)     VRAM word offset
+    $0864 = glyph * 64                            source offset in $7E:4000
 
-After that, twelve-character names need the loop count at `$F9D4` (`CPX #$0006`)
-widened, which needs the table restriped to 12-byte entries and relocated —
-63 × 12 is 756 bytes where 378 fit now — and the table's stride lives inside
-`$01:DD71`.
+and fires two DMAs of `$20` bytes: top half to VRAM `$6000+$0862`, bottom half
+to `$6080+$0862`.
+
+`$01:DD71` is a generic one-entry tilemap write taking `$0872` = x, `$0874` = y,
+`$0876` = the entry. It re-encodes the low byte as `((c & 7) << 1) | ((c & $F8)
+<< 2)`.
+
+### Why halving the four constants could not work
+
+**BG3 is in 16×16 character mode.** `$81:E7B9` writes `$79` to `$2105`: mode 1,
+and bit 6 set is BG3 char size 16×16. That is the whole explanation for the
+shape of the code above — one tilemap entry per glyph, with tile number `2c`,
+because the hardware expands entry `t` into tiles `t`, `t+1`, `t+16`, `t+17`,
+which is exactly where those two DMAs land. `$0862` stepping by `$10` words per
+cell and `$6080` for the bottom half are consequences of the character size, not
+free constants.
+
+A tilemap cell is therefore sixteen pixels wide and cannot be made eight.
+Halving the DMA sizes and the source stride leaves an eight-pixel bitmap in a
+sixteen-pixel cell and never writes the right-hand tile, so whatever the
+previous name left in VRAM stays there — that is the "overlapping". Halving
+`$0862` as well does not rescue it; it makes consecutive cells write over each
+other's tiles.
+
+### What it is now
+
+Keep the 16×16 cell and put **two half-width letters in it**. Cell geometry,
+tilemap loop, `$01:DD71`, coordinates and centring are all untouched; only the
+source of the four tiles changes. Per cell, four DMAs of `$10` bytes:
+
+    glyph a top    -> VRAM $6000 + $0850        glyph b top    -> $6008 + $0850
+    glyph a bottom -> VRAM $6080 + $0850        glyph b bottom -> $6088 + $0850
+
+That gives twelve characters per name in the six cells the layout already has,
+and makes the `$2000` block 256 slots of 8×16 — so **the glyph index is just
+ASCII** and the name table is plain text.
+
+    ROM $152000   LZSS, still $2000 unpacked, 256 × (8×16, 2bpp)
+                  slot n draws chr(n); top tile at n*32, bottom at n*32+$10
+    ROM $153000   63 entries of 12 bytes, ASCII, null padded
+
+The glyphs come off `assets/halfwidth_font_sheet.png` like every other font in
+the build, with the sheet's shadow dropped — the katakana used colour 3 and
+nothing on this BG uses colour 1, so there was no reason to trust a palette
+entry nobody has looked at.
+
+Three patches:
+
+    $81:F893   stride 6 -> 12; keep the entry offset in $084D/$084E instead of
+               copying six bytes; count cells (the first byte of each pair)
+               rather than bytes, so the centring at $F8EC/$F90D still gets 0-6
+    $81:F99B   the glyph loop -> JSL PAIRDRAW
+    $02:F500   PAIRDRAW, 206 bytes of new code
+
+`$01:FA18` is left in place; `$F9B8` was its only caller. The font recompresses
+to 878 bytes against the original 1220, so the block still clears the table at
+`$153000` with room to spare.
+
+Twelve characters is the ceiling, because it is still six cells. Wider means the
+loop count at `$F9D4` *and* the plate spacing at `$F8EC`/`$F90D`, which is five
+columns in the left group and four in the right against a six-cell plate — the
+plates only clear each other because alternate slots sit on different rows.
 
 ## How they were found
 
@@ -102,3 +159,6 @@ Static searching never would have. What worked:
   effective address in brackets gave the source: `$2A:A302`, hence the block at
   `$152000`.
 - **Switching the tile viewer to 2bpp.** The battle font is invisible at 4bpp.
+- **Reading $2105 before believing anything about cell size.** Every wrong
+  theory about the nameplate geometry came from inferring it from the drawing
+  code instead of from the one register that decides it.

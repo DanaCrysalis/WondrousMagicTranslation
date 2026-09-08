@@ -85,6 +85,20 @@ Long matches are copied by `JSL $00183A`, an `MVN $7e,$7e` trampoline.
 `tools/plates.py` implements the decompressor and the chain walk. Verified: block
 `$0B3D68` reproduces `$7E:4000-$7E:6800` in a savestate byte for byte.
 
+`tools/lzss.py` does both directions. The encodable shapes are narrow — length 2
+only within 16 bytes, length 3-16 and 17-272 within 4096 — so a greedy matcher
+with one step of lookahead lands within about 3% of the original ratio, which is
+all the battle font needed:
+
+    python3 tools/lzss.py        round-trip every known block
+
+Two things the encoder has to respect. The decompressor tests `CPX $04` *before*
+fetching each token, so a final group with unused flag bits costs nothing and
+there is no terminator — but it also means a match that would overrun the
+destination writes its tail past the end, so the last token has to land exactly
+on it. And long matches go through `MVN`, which copies forwards a byte at a
+time, so overlapping run-length matches are fine.
+
 ## Known blocks
 
 | ROM | Unpacked | Destination | What |

@@ -10,7 +10,7 @@ Super Famicom, ASCII / System Sacom, 1993.
 | Text engine | Reverse engineered, patched to half-width |
 | Character table | Complete — 192 text glyphs, 256 kanji, read out of the ROM font |
 | Script extraction | Complete — 920 strings across five blocks |
-| Compression | RUX and a second LZSS, both decoded; RUX compressor written |
+| Compression | RUX and a second LZSS, both decoded, both compressors written |
 | Title screen, name entry, intro crawl | Translated |
 | Block C — menus, places, classes, spells | Translated |
 | Block A — 151 items with descriptions | Translated |
@@ -18,7 +18,7 @@ Super Famicom, ASCII / System Sacom, 1993.
 | Block D — Rinkle's area hints | Translated, 51 strings |
 | Block E — status screen layout | Tokens only, nothing to translate |
 | World map nameplates | Extracted as PNGs — baked art, not yet redrawn |
-| Monster names | Decoded — 63 names, font and table found, not yet converted |
+| Monster names | **English** — Latin font, 12-character names, renderer patched |
 
 Blocks B and D are repacked against their pointer tables at build time, so their
 strings are not limited to their original lengths. Blocks A, C and E are written
@@ -57,7 +57,8 @@ double-applied patch fails loudly instead of producing something subtly broken.
 | crawl | RUX archive `$132000` | 2 | intro poem, prologue |
 
 Not script, and not in any block: the world map nameplates and the battle monster
-names. See `docs/assets.md`.
+names. The names are English now and are authored on the `Monster names` sheet;
+the nameplates are still baked art. See `docs/assets.md`.
 
 `data/Wondrous_Magic_script.xlsx` **is** the script — the only place English is
 authored. There are no `script_*.py` tables any more; `build/sheet.py` reads the
@@ -77,4 +78,5 @@ format and the half-width scheme. Then:
 | `docs/screens.md` | title screen and name entry |
 | `docs/assets.md` | the nameplates and monster names — graphics, not script |
 
-If you are picking up the remaining work, it is all in `docs/assets.md`.
+If you are picking up the remaining work, it is the world map nameplates, in
+`docs/assets.md`.

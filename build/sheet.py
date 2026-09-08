@@ -6,6 +6,7 @@ This module reads it and hands the build the same shapes the old script_a.py,
 script_b.py, script_c.py and the systext/prologue tables used to hand it:
 
     text()          {rom offset: English} for blocks A, B and C
+    monsters()      [str] the 63 battle names, in table order
     title()         {rom offset: English} for the title and save screens
     chart()         [str] the name entry grid, one string per row
     crawl()         ([str], [str]) the intro poem and the prologue
@@ -120,6 +121,20 @@ def block_a():
     return out, missing
 
 
+def monsters():
+    """The 63 battle monster names, in table order.
+
+    Not script - they are glyph indices in a font of their own, see
+    build/battle_names.py - but they are English that somebody has to write, so
+    they are authored here like everything else.
+    """
+    if 'monsters' not in _cache:
+        rows = [(int(i), '' if en is None else str(en))
+                for i, _rom, _jp, en, *_ in _rows('Monster names') if i is not None]
+        _cache['monsters'] = [n for _, n in sorted(rows)]
+    return _cache['monsters']
+
+
 # ------------------------------------------------------------ blocks B, C ----
 
 def authored():
@@ -186,6 +201,7 @@ if __name__ == '__main__':
     t = text()
     poem, prologue = crawl()
     print('%s\n  blocks A+B+C  %d strings\n  title screen  %d\n'
-          '  name entry    %d rows\n  intro crawl   %d + %d lines'
+          '  name entry    %d rows\n  intro crawl   %d + %d lines\n'
+          '  monster names %d'
           % (os.path.basename(BOOK), len(t), len(title()),
-             len(chart()), len(poem), len(prologue)))
+             len(chart()), len(poem), len(prologue), len(monsters())))

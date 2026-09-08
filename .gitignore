@@ -1,0 +1,6 @@
+# ROMs are never committed - see rom/README.md
+rom/*.sfc
+rom/*.smc
+
+__pycache__/
+*.pyc
