@@ -155,7 +155,16 @@ def text():
     if 'text' not in _cache:
         a, missing = block_a()
         if missing:
-            raise SystemExit('block A: %d unmatched, first %r' % (len(missing), missing[:3]))
+            # Block A is matched by its Japanese, so a whitespace change in the
+            # workbook detaches every row at once rather than one. That is what
+            # a wholesale failure means; a handful means real untranslated text.
+            hint = ('\n  every row failed, so this is the workbook rather than the '
+                    'script - most block A bodies begin with a space, and a reader '
+                    'or writer that drops it will do exactly this. '
+                    'Try: python3 build/book.py'
+                    if len(missing) > len(names()) // 2 else '')
+            raise SystemExit('block A: %d of %d unmatched, first %r%s'
+                             % (len(missing), len(names()), missing[:3], hint))
         out = dict(a)
         out.update(authored())
         _cache['text'] = out
