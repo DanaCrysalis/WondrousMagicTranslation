@@ -4,3 +4,4 @@ rom/*.smc
 
 __pycache__/
 *.pyc
+out/

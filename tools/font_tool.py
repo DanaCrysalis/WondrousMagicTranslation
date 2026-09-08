@@ -111,10 +111,22 @@ def guide(rom, path, scale=6):
 
 
 if __name__ == '__main__':
-    rom = bytearray(open(paths.ROM_OUT,'rb').read())
-    export(rom, os.path.join(paths.ASSETS,'halfwidth_font_sheet.png'))
-    guide(rom, os.path.join(paths.ASSETS,'halfwidth_font_guide.png'))
-    # round-trip check
+    # This used to write straight into assets/, which meant the check that the
+    # font survived a build silently replaced the hand-drawn sheet with the
+    # normalised export - same glyphs, but the shadow re-coloured from #6E6E6E
+    # to #808080 and the file rewritten. Harmless every time so far, and exactly
+    # the sort of thing that is not harmless once. It goes to out/ now.
+    import sys
+    into = paths.ASSETS if '--overwrite' in sys.argv else os.path.join(paths.ROOT, 'out')
+    os.makedirs(into, exist_ok=True)
+    rom = bytearray(open(paths.ROM_OUT, 'rb').read())
+    sheet_png = os.path.join(into, 'halfwidth_font_sheet.png')
+    export(rom, sheet_png)
+    guide(rom, os.path.join(into, 'halfwidth_font_guide.png'))
+    # round-trip: the glyphs the ROM holds must survive export and re-import
     before = bytes(rom[FONT:FONT + COLS*ROWS*32])
-    load(rom, os.path.join(paths.ASSETS,'halfwidth_font_sheet.png'))
-    print('round-trip:', 'OK' if bytes(rom[FONT:FONT + COLS*ROWS*32]) == before else 'MISMATCH')
+    load(rom, sheet_png)
+    ok = bytes(rom[FONT:FONT + COLS*ROWS*32]) == before
+    print('%s\nround-trip: %s' % (into, 'OK' if ok else 'MISMATCH'))
+    if into != paths.ASSETS:
+        print('pass --overwrite to replace the editable sheet in assets/')
