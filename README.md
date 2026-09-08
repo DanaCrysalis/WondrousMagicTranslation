@@ -26,12 +26,12 @@ in place and must fit.
 
 ## Build
 
+    pip install pillow odfpy
     python3 build/build.py
 
-Needs Python 3, Pillow and odfpy. Put the Japanese ROM in `rom/` first (see
-`rom/README.md`).
-Output is `rom/Wondrous_Magic_EN.sfc`. Needs `odfpy` — the build reads the
-workbook directly.
+Put the Japanese ROM in `rom/` first — see `rom/README.md`. Output is
+`rom/Wondrous_Magic_EN.sfc`. Pillow draws the fonts; odfpy reads the workbook,
+which the build reads directly rather than through any generated table.
 
 The build is a single pass from a clean ROM — no incremental state, no patch order
 to remember. Every stage asserts the bytes it is replacing, so a wrong ROM or a

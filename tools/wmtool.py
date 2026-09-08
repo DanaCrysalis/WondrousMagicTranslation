@@ -42,7 +42,10 @@ FONT_KANJI = 0x0AB000         # 256 x 16x16 2bpp glyphs, $1E xx
 # glyph g at FONT + (g>>3)*0x200 + (g&7)*32 : 32 bytes (top half) and +0x100 (bottom half)
 # uploader: $90:9A67, reads $15:8000,X and $15:8100,X -> WRAM $7E:2E00/$2F00 -> VRAM DMA
 
-_T = json.load(open(os.path.join(paths.DATA,'table.json')))
+# encoding is explicit everywhere: table.json is UTF-8 and Windows opens text
+# files as cp1252 by default, which dies on the first kana.
+with open(os.path.join(paths.DATA, 'table.json'), encoding='utf-8') as _f:
+    _T = json.load(_f)
 TBL = {int(k, 16): v for k, v in _T['text'].items()}      # $20-$DF, from ROM font $0A8000
 EXT = {int(k, 16): v for k, v in _T['ext'].items()}       # $E0-$E4 flipped text glyphs
 KANJI = {int(k, 16): v for k, v in _T['kanji'].items()}   # $1E xx, from ROM font $0AB000
