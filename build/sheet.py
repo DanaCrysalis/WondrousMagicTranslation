@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The workbook is the script.
 
-`data/Wondrous_Magic_script.xlsx` is now the only place English is authored.
+`data/Wondrous_Magic_script.ods` is now the only place English is authored.
 This module reads it and hands the build the same shapes the old script_a.py,
 script_b.py, script_c.py and the systext/prologue tables used to hand it:
 
@@ -20,14 +20,16 @@ name occupied. So block A is authored on the `Item names` and `Descriptions`
 sheets, and its English column in `Script` is generated. Editing it there does
 nothing; `tools/refresh_spreadsheet.py` overwrites it.
 
-Everything is read once and cached. openpyxl is required at build time now.
+Everything is read once and cached. `build/book.py` does the OpenDocument
+reading, so odfpy is the build's spreadsheet dependency.
 """
 import os, re, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import paths
 import wmtool
+import book
 
-BOOK = os.path.join(paths.DATA, 'Wondrous_Magic_script.xlsx')
+BOOK = os.path.join(paths.DATA, 'Wondrous_Magic_script.ods')
 
 BLOCK_A = (0x0912C0, 0x092FDF)
 
@@ -36,20 +38,15 @@ _cache = {}
 
 def _book():
     if 'wb' not in _cache:
-        try:
-            import openpyxl
-        except ImportError:
-            raise SystemExit('the build reads the workbook now: pip install openpyxl')
-        if not os.path.exists(BOOK):
-            raise SystemExit('missing %s' % BOOK)
-        _cache['wb'] = openpyxl.load_workbook(BOOK, data_only=True)
+        _cache['wb'] = book.read(BOOK)
     return _cache['wb']
 
 
-def _rows(name, first=2):
-    ws = _book()[name]
-    for r in range(first, ws.max_row + 1):
-        yield [ws.cell(r, c).value for c in range(1, ws.max_column + 1)]
+def _rows(name, first=2, width=8):
+    """Rows from `first` on, 1-based, padded so unpacking never runs short."""
+    rows = _book()[name]
+    for row in rows[first - 1:]:
+        yield list(row) + [None] * (width - len(row))
 
 
 # ---------------------------------------------------------------- block A ----

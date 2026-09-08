@@ -2,8 +2,9 @@
 
 ## The workbook is the script
 
-`data/Wondrous_Magic_script.xlsx` — 2,884 rows in `Script`, one per string, plus
-the sheets that hold everything else.
+`data/Wondrous_Magic_script.ods` — 920 rows in `Script`, one per string, plus the
+sheets that hold everything else. It is OpenDocument, so LibreOffice, Excel and
+Google Sheets all open it; `build/book.py` reads and writes it through odfpy.
 
 It is the **only** place English is authored. There are no `script_a.py`,
 `script_b.py` or `script_c.py` tables any more, and no hand-written STRINGS or
@@ -15,6 +16,7 @@ dicts it used to import.
 | Script | every ROM string, blocks A B C | English column, blocks B and C |
 | Item names | 151 block A item names | yes |
 | Descriptions | 114 block A description bodies | yes |
+| Monster names | 63 battle names | yes, 12 ASCII characters each |
 | Title screen | title, save and options strings | yes |
 | Name entry | the name entry grid | yes |
 | Intro crawl | the opening poem and prologue | yes |

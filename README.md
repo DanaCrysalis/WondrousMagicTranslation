@@ -28,8 +28,9 @@ in place and must fit.
 
     python3 build/build.py
 
-Needs Python 3 and Pillow. Put the Japanese ROM in `rom/` first (see `rom/README.md`).
-Output is `rom/Wondrous_Magic_EN.sfc`. Needs `openpyxl` — the build reads the
+Needs Python 3, Pillow and odfpy. Put the Japanese ROM in `rom/` first (see
+`rom/README.md`).
+Output is `rom/Wondrous_Magic_EN.sfc`. Needs `odfpy` — the build reads the
 workbook directly.
 
 The build is a single pass from a clean ROM — no incremental state, no patch order
@@ -60,7 +61,7 @@ Not script, and not in any block: the world map nameplates and the battle monste
 names. The names are English now and are authored on the `Monster names` sheet;
 the nameplates are still baked art. See `docs/assets.md`.
 
-`data/Wondrous_Magic_script.xlsx` **is** the script — the only place English is
+`data/Wondrous_Magic_script.ods` **is** the script — the only place English is
 authored. There are no `script_*.py` tables any more; `build/sheet.py` reads the
 workbook and hands the build what it used to import. See `docs/translating.md`.
 

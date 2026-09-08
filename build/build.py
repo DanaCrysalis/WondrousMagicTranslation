@@ -8,7 +8,7 @@
   5. Title screen and name entry
   6. Battle monster names       ROM $152000 font, $153000 table, $02:F500 code
 
-All English comes from data/Wondrous_Magic_script.xlsx by way of build/sheet.py.
+All English comes from data/Wondrous_Magic_script.ods by way of build/sheet.py.
 There are no script_*.py tables any more.
 
 The Japanese font at $0A8000 is deliberately left untouched. The title screen and
