@@ -37,7 +37,7 @@ where the table-pointed blocks begin.
     python3 tools/plates.py draw out/       draw English plates from the names
                                             in assets/plates/, to edit by hand
 
-`build/plates_patch.py` compiles whatever is in `assets/plates/` back into the
+`build/build.py` compiles whatever is in `assets/plates/` back into the
 ROM on every build, so a plate is changed by editing its PNG and rebuilding.
 Keep the size at 128x16 and use only the three colours the art uses:
 

@@ -47,24 +47,40 @@ character *n* × 8.
     python3 tools/plates.py draw out/      a Latin first pass, from the filenames
 
 `build/build.py` compiles `assets/plates/*.png` back into the ROM on every build,
-so a plate is changed by editing its PNG and rebuilding. The files there are
-still the Japanese art, which makes the step a verified no-op: the round trip
-reproduces every character of both blocks exactly.
+so a plate is changed by editing its PNG and rebuilding. All twenty are English
+now, hand drawn. The round trip still verifies: decompressing both blocks out of
+the built ROM reproduces every source PNG pixel for pixel.
 
 Keep a plate 128×16 and paletted, and use only the three indices the art uses —
 `2` body, `8` outline, `9` field. Anything else is rejected by name rather than
 written as a wrong colour.
 
-**Space.** Blocks 0 and 1 are written end to end from `$0B3D68` and must not
-reach `$0B5644`, where the first table-pointed block starts — 6,364 bytes. The
-Japanese art repacks to 6,314. Latin letters compress far better: the drawn
-English set comes to 3,479, leaving about 2,900 spare. Block 1's address is
-patched to wherever block 0 ends, so the two do not have to keep their original
-sizes.
+**Watch the palette on anything an image editor has touched.** The build reads
+pixel values as palette *indices* and never looks at the RGB, so a file that
+looks correct on screen can still be wrong. Editors that optimise the palette
+renumber the three colours to `0`, `1`, `2` — and not consistently between
+files: the delivered English set had `0` as the field in seventeen plates and as
+the outline in the other three. Remapping such a file by index rather than by
+colour inverts it into black letters on a black field, which the build cannot
+catch because the result is a legal plate. Re-index by matching RGB.
 
-**Width.** Sixteen half-width letters fit across a plate, two to a 16×16 cell.
-Nineteen of the twenty names fit. `Floating Fortress` is seventeen and does not;
-`Flying Fortress` (15) or `Sky Fortress` (12) would.
+**Space.** Blocks 0 and 1 are written end to end from `$0B3D68` and must not
+reach `$0B5644`, where the first table-pointed block starts — 6,364 bytes. Block
+1's address is patched to wherever block 0 ends, so the two do not have to keep
+their original sizes.
+
+The margin is thin. The Japanese art repacked to 6,314; the machine-drawn Latin
+pass, being flat glyphs on a flat field, came to 3,479; the hand-drawn English
+plates in the tree now come to **6,326, leaving 38 bytes**. Outlines and
+proportional spacing cost most of that — they break up the long runs the LZSS
+lives on. A redraw that adds detail can overrun, and the build says so and stops.
+If it does, both block addresses are immediates (`LDX` at `$91:8349` and
+`$91:8354`), so moving them is three bytes each.
+
+**Width.** The old limit of sixteen half-width letters, two to a 16×16 cell,
+applies to `plates.py draw`, which sets type on that grid. Hand-drawn art is not
+on the grid: `Floating Fortress` is seventeen characters and fits comfortably,
+which is why the plate is no longer called `Flying Fortress`.
 
 ## Monster names
 
