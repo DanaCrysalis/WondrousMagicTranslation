@@ -11,7 +11,7 @@ Super Famicom, ASCII / System Sacom, 1993.
 | Character table | Complete — 192 text glyphs, 256 kanji, read out of the ROM font |
 | Script extraction | Complete — 920 strings across five blocks |
 | Compression | RUX and a second LZSS, both decoded, both compressors written |
-| Title screen, name entry, intro crawl | Translated |
+| Title screen, name entry, intro crawl | Translated — name entry buttons redrawn, cursor skips the blanks |
 | Block C — menus, places, classes, spells | Translated |
 | Block A — 151 items with descriptions | Translated |
 | Block B — story script | **Translated, all 412 strings** |

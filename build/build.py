@@ -142,7 +142,9 @@ if __name__ == '__main__':
 
     # 8. title screen and name entry
     import systext
-    npairs = systext.apply(rom)
+    npairs, ncursor = systext.apply(rom)
+    print('name entry: %d buttons redrawn, cursor skip %d bytes at $02:F600'
+          % (len(systext.BUTTONS), ncursor))
     print('crawl pairs %d, system pairs %d, archive %d bytes, checksum $%04X'
           % (len(pp.pairs), npairs, len(enc), checksum(rom)))
     open(ROM_OUT, 'wb').write(bytes(rom))

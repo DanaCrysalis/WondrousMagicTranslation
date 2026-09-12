@@ -87,6 +87,17 @@ as text invents thousands of phantom strings, which is what made the workbook
 `$A6:880E` has exactly one caller, the crawl driver at `$A6:87FB`, so changing its
 font bank affects nothing else.
 
+### Name entry cursor (`build/systext.py`)
+
+| Site | Was | Now |
+|---|---|---|
+| `$82:A5A3` | `JSR $A73D` | `JSR $F600` — skip the blank chart cells |
+| `$82:A5A6` | `JSR $A73D` | `JSR $F600` |
+
+142 bytes of new code at `$017600` (`$02:F600`), after the monster-name routine at
+`$02:F500` and inside the same free tail of the bank. `$82:A73D` and `$82:A78B`
+are left in place, with nothing calling them. See `docs/screens.md`.
+
 ### Pointer tables rewritten at build time
 
 | Table | Entries | Form | Written by |

@@ -124,6 +124,239 @@ def write_glyph(rom, g, img):
                 rom[dst + y * 2 + 1] = p1
 
 
+# --------------------------------------------------------- the three buttons --
+#
+# The chart's last two rows carry three symbol codes that the chart string keeps
+# verbatim, because $82:A67F dispatches on the code it reads back out of the
+# text layer:
+#
+#     $206   delete    row 6, column 0     $82:A6A5 -> $82:A621, the backspace
+#     $207   space     row 7, column 1     $82:A6B7, substitutes $BF, stored $20
+#     $205   end       row 7, column 0     $82:A6C7, returns $FFFF, name accepted
+#
+# Changing the codes would mean changing that dispatch, so the codes stay and
+# only the pictures change. They are not in the $0A8000 font: $82:BE9A resolves
+# codes $200-$209 to bank $28 at $8C00, in the same interleaved 16x16 layout the
+# text font uses, so glyphs.write_16 addresses them at index code - $1FB.
+#
+# Three letters will not fit across sixteen pixels side by side, so they are set
+# 4x5 and stepped down the diagonal - SPC, DEL and END read top-left to
+# bottom-right, with the same one-pixel shadow the chart letters have.
+
+BUTTON_FONT = 0x140C00           # $28:8C00, codes $200-$209
+BUTTONS = {0x205: 'END', 0x206: 'DEL', 0x207: 'SPC'}
+
+MICRO = {
+    'S': ('.###',
+          '#...',
+          '.##.',
+          '...#',
+          '###.'),
+    'P': ('###.',
+          '#..#',
+          '###.',
+          '#...',
+          '#...'),
+    'C': ('.###',
+          '#...',
+          '#...',
+          '#...',
+          '.###'),
+    'D': ('###.',
+          '#..#',
+          '#..#',
+          '#..#',
+          '###.'),
+    'E': ('####',
+          '#...',
+          '###.',
+          '#...',
+          '####'),
+    'L': ('#...',
+          '#...',
+          '#...',
+          '#...',
+          '####'),
+    'N': ('#..#',
+          '##.#',
+          '#.##',
+          '#..#',
+          '#..#'),
+}
+
+
+STEP = (5, 4)                    # 4x5 letters, three of them, 16x16 to fill
+
+# C is the one letter whose 4x5 form opens with a blank column, so in the third
+# slot it sat a pixel right of where END's D and DEL's L put their ink and SPC
+# looked lopsided. Nudge the whole letter back by one.
+NUDGE = {'C': -1}
+
+
+def button(label):
+    """16x16 with three 4x5 letters stepped down the diagonal.
+
+    Shadow first and body over it, so a letter's shadow never eats the corner
+    of the one below - the step is one pixel tighter than the letters are tall.
+    """
+    px = glyphs.blank16()
+    for shade, drop in ((1, 1), (3, 0)):
+        for i, ch in enumerate(label):
+            ox = 1 + i * STEP[0] + drop + NUDGE.get(ch, 0)
+            oy = 1 + i * STEP[1] + drop
+            for y, row in enumerate(MICRO[ch]):
+                for x, c in enumerate(row):
+                    if c == '#':
+                        px[oy + y][ox + x] = shade
+    return px
+
+
+def write_buttons(rom):
+    for code, label in BUTTONS.items():
+        glyphs.write_16(rom, BUTTON_FONT, code - 0x1FB, button(label))
+    return len(BUTTONS)
+
+
+# ----------------------------------------------------------- cursor skipping --
+#
+# Every blank cell in the chart is selectable, and the cursor is a palette swap
+# on the cell it sits on, so on a blank one there is nothing to recolour and it
+# simply vanishes. The English chart made that far worse than the Japanese one:
+# forty-three of the 8x14 grid's cells are dead - four past the '9', fourteen in
+# the empty row, and twenty-five around the three buttons.
+#
+# The game already skips its own blanks, in $82:A73D, which $82:A5A3 calls twice
+# right after a move and before the cursor is redrawn. It is a hard-coded list -
+# row 5 is empty, and rows 1 and 3 have a hole at column $0C - so it does not
+# generalise. This replaces it with the same idea driven off the screen: read the
+# glyph code under the cursor and, unless it is one the chart put there, keep
+# stepping the way the d-pad was pushed. The chart is then the only thing
+# deciding where the cursor can rest, and editing the `Name entry` sheet cannot
+# strand it.
+#
+# What counts as somewhere to sit is a whitelist - a single letter, code $001 to
+# $05E, or one of the three buttons - rather than "not blank". Row 5 is the
+# reason: its entry in the chart string is empty, so nothing is ever written to
+# those cells and what the text layer holds there is whatever the screen was
+# cleared to. Testing for code $000 would be betting on that; testing for the
+# codes the chart writes is not.
+#
+# $104E is the column, counted from the right - the screen cell is $1C - 2*col,
+# because the kana chart read right to left - and $104F is the row, at row*2 +
+# $0A. $02:BEE5 takes that position as (y << 8) | x and $02:C40A returns the code
+# the text layer holds there, both exactly as $82:A681 uses them. The direction
+# bits are the joypad's: $01 right, $02 left, $04 down, $08 up. $82:A511 has
+# already dropped out of this path when none of them is set, so the walk always
+# has a direction to follow.
+#
+# The step budget only exists so that a chart with a wholly blank row cannot hang
+# the game: sixteen is twice the tallest wrap and past the widest.
+
+CURSOR_CODE = 0x017600           # $02:F600, past battle_names' $02:F500
+CURSOR_ORG = 0xF600
+CURSOR_HOOKS = (0x0125A3, 0x0125A6)     # JSR $A73D, twice
+
+
+def _cursor_code():
+    out = bytearray()
+    marks = {}
+
+    def emit(*bs):
+        out.extend(bs)
+
+    def branch(op, name):
+        emit(op, 0)
+        marks.setdefault(name, []).append(len(out) - 1)
+
+    def target(name):
+        for at in marks.pop(name):
+            out[at] = (len(out) - at - 1) & 0xFF
+
+    def step(bit, mem, last):
+        """One direction: the decrementing half wraps to `last`, the other to 0.
+
+        Deliberately the same arithmetic as the move itself at $82:A52D-$A577,
+        so a continued walk cannot drift from the step that started it.
+        """
+        lo, hi = mem & 0xFF, mem >> 8
+        end = 'past%02x' % bit
+        emit(0xA3, 0x01)                     # LDA $01,S    the direction bits
+        emit(0x89, bit)                      # BIT #bit
+        branch(0xF0, end)                    # BEQ past
+        if bit in (0x01, 0x08):              # right / up
+            emit(0xCE, lo, hi)               # DEC mem
+            branch(0x10, end)                # BPL past
+            emit(0xA9, last)                 # LDA #last
+            emit(0x8D, lo, hi)               # STA mem
+        else:                                # left / down
+            emit(0xEE, lo, hi)               # INC mem
+            emit(0xAD, lo, hi)               # LDA mem
+            emit(0xC9, last + 1)             # CMP #last+1
+            branch(0x90, end)                # BCC past
+            emit(0x9C, lo, hi)               # STZ mem
+        target(end)
+
+    emit(0x08)                               # PHP
+    emit(0xC2, 0x10)                         # REP #$10     X/Y 16-bit for C40A
+    emit(0x5A)                               # PHY          under the direction
+    emit(0xE2, 0x20)                         # SEP #$20     bits, so $01,S holds
+    emit(0x48)                               # PHA          them all the way down
+    emit(0xA0, 0x10, 0x00)                   # LDY #$0010   step budget
+    top = len(out)
+    emit(0xAD, 0x4F, 0x10)                   # LDA $104F    row
+    emit(0x0A)                               # ASL
+    emit(0x18)                               # CLC
+    emit(0x69, 0x0A)                         # ADC #$0A     -> y cell
+    emit(0xEB)                               # XBA
+    emit(0xA9, 0x1C)                         # LDA #$1C
+    emit(0x38)                               # SEC
+    emit(0xED, 0x4E, 0x10)                   # SBC $104E
+    emit(0xED, 0x4E, 0x10)                   # SBC $104E    -> x cell
+    emit(0x22, 0xE5, 0xBE, 0x02)             # JSL $02BEE5  set the position
+    emit(0x22, 0x0A, 0xC4, 0x02)             # JSL $02C40A  read the code
+    # code - 1, so the two runs that count are 0..$5D and $204..$206
+    emit(0xC2, 0x20)                         # REP #$20
+    emit(0x38)                               # SEC
+    emit(0xE9, 0x01, 0x00)                   # SBC #$0001
+    emit(0xC9, 0x5E, 0x00)                   # CMP #$005E   a chart letter?
+    branch(0x90, 'rest')                     # BCC rest
+    emit(0xC9, 0x04, 0x02)                   # CMP #$0204
+    branch(0x90, 'walk')                     # BCC walk
+    emit(0xC9, 0x07, 0x02)                   # CMP #$0207   one of the buttons?
+    branch(0xB0, 'walk')                     # BCS walk
+    target('rest')
+    emit(0xE2, 0x20)                         # SEP #$20
+    branch(0x80, 'done')                     # BRA done     somewhere to sit
+    target('walk')
+    emit(0xE2, 0x20)                         # SEP #$20
+    emit(0x88)                               # DEY
+    branch(0xF0, 'done')                     # BEQ done     give up, never hang
+    step(0x01, 0x104E, 0x0D)                 # right
+    step(0x02, 0x104E, 0x0D)                 # left
+    step(0x04, 0x104F, 0x07)                 # down
+    step(0x08, 0x104F, 0x07)                 # up
+    back = CURSOR_ORG + top
+    emit(0x4C, back & 0xFF, back >> 8)       # JMP top
+    target('done')
+    emit(0x68)                               # PLA          direction bits back
+    emit(0x7A)                               # PLY
+    emit(0x28)                               # PLP
+    emit(0x60)                               # RTS
+    assert not marks, marks
+    return bytes(out)
+
+
+def cursor_patch(rom):
+    code = _cursor_code()
+    assert all(b == 0xFF for b in rom[CURSOR_CODE:CURSOR_CODE + len(code)]), \
+        'cursor code space not free'
+    rom[CURSOR_CODE:CURSOR_CODE + len(code)] = code
+    for off in CURSOR_HOOKS:
+        assert bytes(rom[off:off + 3]) == b'\x20\x3d\xa7', '%06X' % off
+        rom[off + 1:off + 3] = CURSOR_ORG.to_bytes(2, 'little')
+    return len(code)
+
+
 def apply(rom):
     # prose strings
     for off, text in STRINGS.items():
@@ -161,4 +394,6 @@ def apply(rom):
     # letter pairs
     for pr, g in pairs.items():
         glyphs.write_16(rom, FONT, g, glyphs.pair(pr[0], pr[1]))
-    return len(pairs)
+    # the space / delete / end buttons, and a cursor that skips the blanks
+    write_buttons(rom)
+    return len(pairs), cursor_patch(rom)
