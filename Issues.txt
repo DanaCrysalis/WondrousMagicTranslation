@@ -1,0 +1,254 @@
+NEW ISSUES
+==================
+"Well come... you who are" -> "Welcome... you who are"
+
+
+ROUND 4 - all closed
+====================
+
+  [x] "The party felled the beast" -> "The party felled the enemy"   (B0319)
+
+  [x] Selling a Wooden Staff removed the right border
+        Mine, from round 1, and the screenshot showed it exactly.
+
+        "Sell the <NAME:0301>?" is not nine cells wide. <NAME:sWW> pads UP to WW
+        cells and grows straight past it when the name needs more, and which
+        item it is is not known until the game runs. My width model counted the
+        field as its declared one cell; "Wooden Staff" is six. So the line is
+        really 11.5 cells, and the three cells of padding round one added took
+        it to 14.5. Half a cell past the fourteen-cell window is the right
+        border, and that is the border that disappeared.
+
+        The Japanese sized these lines so the longest name just fits - there is
+        nothing spare to pad, and padding can only overflow. The padding is off
+        every line in those windows that carries a <NAME> field: B0334 B0338
+        B0351 B0361 B0378 B0386 B0388.
+
+        tools/check_cover.py now models a field at its WIDEST rather than its
+        declared width, and flags with !! any line that could run past the
+        window. It reports 14.5 cells for the string as it was, and 11.5 as it
+        now is, so this particular mistake cannot come back unseen.
+
+        This also explains the "Thank you kindly." border bite properly. It was
+        the same half cell over the edge, from the same padding pass.
+
+  [x] a lost edit, found while verifying the above
+        "Now for your examination." went in during round 1 and was then undone,
+        in the same run, by the faith edit to the same cell - my editor wrote
+        each change into the workbook but not into the copy it read from, so the
+        second edit to one cell read the value from before the first and wrote
+        it back. Only that one string was hit; nothing else took two edits to a
+        single cell.
+
+        Re-applied, and the editor now updates both, so edits to one cell
+        compose. The check that caught it is worth keeping: render every string
+        back out of the BUILT ROM and assert each intended change is present and
+        each old wording is gone. Run against this build, everything passes -
+        the only three that look like misses are not:
+          "mouth of"   the Recall spell, which keeps "labyrinth" on purpose
+                       because its Japanese says 迷宮, not ダンジョン
+          "Gold"       the items Gold and Gold Spoon, which are named that
+          "start of the dungeon"  present; my walk had stopped short
+
+
+ROUND 3 - all closed
+====================
+
+  [x] Gaining levels has an extra line break between each stat line
+  [x] finding an item after battle has an extra newline before it
+        Mine, from round 2, and they confirmed the diagnosis rather than
+        contradicting it. Seven strings BEGAN with a newline the Japanese does
+        not have - "Health rose by N", "Obtained the <item>", and four more.
+        They were put there to make up for the trailing newline the workbook was
+        dropping. Once the trailing one was restored, each became a doubled
+        break. They are precisely the strings whose author had to work around
+        the missing newline, which is about as good a confirmation as the theory
+        could get.
+
+        Leading newline removed from all seven: B0321 B0324 B0325 B0326 B0327
+        B0328 B0329.
+
+  [x] Sell item text "Thank you kindly." takes a bite out of the right border
+        CONFIRMED FIXED by your test. The antiquary's line (B0352) was eleven
+        and a HALF cells where the Japanese is eleven - the padding pass only
+        ever ADDED width, so a line that was already too wide went straight past
+        it. Three full-width spaces of indent became two and an ordinary space:
+        eleven cells exactly, as the Japanese has it.
+
+        Worth remembering that the half cell was enough to do it. The window is
+        fourteen cells wide and the line was only 11.5, so on the geometry alone
+        it should not have reached the border - whatever the real mechanism is,
+        matching the Japanese width exactly is what fixed it. That is the rule
+        to hold to: not "under fourteen cells" but "the width the Japanese had".
+
+  [x] Resetting causes garbage instead of the company logo - EMULATOR, NOT ROM
+        Your test settled it: bsnes shows the logo with no garbage, snes9x does
+        not. bsnes is the accurate one, so the ROM is behaving correctly and
+        there is nothing here to fix.
+
+        Two things from chasing it that are worth keeping. First, a diff of our
+        ROM against a rebuild of the pre-session state showed the only regions
+        this session touched were the checksum, the three engine hooks, the
+        patch code at $90:E900, blocks A/B/C/D, the crawl archive, the SPC
+        glyph and the dictionary - nothing in the boot path. Second, an audit of
+        every region the build writes against the untouched Japanese ROM: every
+        one is either free space or a deliberate in-place replacement. Nothing
+        the build does lands on data that is not ours.
+
+        If it ever needs revisiting, tools exist to stage the patch set one step
+        at a time and find which one a symptom belongs to.
+
+
+ROUND 2 - fixed
+===============
+
+  [x] make the resource Faith into faith, didn't need to be capitalized
+        lower case wherever it is a noun in a sentence, like health. Two keep
+        their capital because they open a sentence: "Faith restored." and
+        "Faith rose by N", which sits beside "Health rose by N".
+
+  [x] Intro crawl has TOO MANY line breaks
+        the blank row after every line is gone. One row per line, one blank row
+        between paragraphs. Still centred. build/prologue_patch.py.
+
+  [x] "Use the Door Key?" shows Yes before you press the button
+        THE ROOT CAUSE, and it turned out to be much bigger than this prompt.
+        The Japanese asks over two rows, then waits, then offers both answers:
+
+            『トビラのカギ』を        row 0
+                使いますか？          row 1
+            <WAIT>     は い          row 2
+                 いいえ               row 3
+
+        The English fits the question on one row, which moved every later row
+        up one and left the <WAIT> between Yes and No. Four rows again, question
+        on the first, second left blank, so Yes and No are back on the rows the
+        cursor expects.
+
+  [x] Shop intro text is not clearing on the transition to Buy/Sell
+        608 of the 868 strings end `$0D $00` in the ROM - a newline, and then
+        the terminator. It is not decoration: it leaves the cursor at the start
+        of the NEXT row, so the following string drawn into the same window
+        starts where it should. Bare item names, which print inline in the
+        middle of a sentence, do not have one; anything that occupies a line of
+        its own does.
+
+        The workbook never carried it. The extractor rstrips it, and a trailing
+        blank line in a spreadsheet cell would not survive editing anyway, so
+        every English string was handing the next one a cursor halfway along a
+        line. That is the real cause of "Welcome to my shop! What can I get
+        you?" on one row, and of a good deal of the rest of the not-clearing
+        family - the padding fixed the symptom, this is the disease.
+
+        build/sheet.py now appends the newline wherever the Japanese has one.
+        It is plumbing, not text, so it is not authored: what the sheet says is
+        still what appears. This changes 608 strings at once - worth a careful
+        look at any window text while you play.
+
+  [x] Name Entry Screen: the SPC glyph needs to move the C left one pixel
+        C is the one letter whose 4x5 form opens with a blank column, so it sat
+        a pixel right of where END's D and DEL's L put their ink. build/systext.py
+
+  [x] Beast Plume description: "mouth of the labyrinth" -> "start of the dungeon"
+        matches the Japanese, which says そのダンジョン here. The Recall spell
+        keeps "labyrinth" - its Japanese says 迷宮, the labyrinth proper.
+
+  [x] 5th spell in Cast Spell menu - you confirm this is fixed
+        it was the description panel: those 19 descriptions were padded back to
+        their Japanese widths last round.
+
+
+NEEDS A LOOK
+============
+  [ ] block B has 225 bytes of headroom left, out of 64,704
+        the trailing newlines cost about 440 bytes and the padding about 250.
+        There is still room, but not much - if a future edit overflows, the
+        build says so and writes nothing rather than producing something broken.
+
+  [X] the shop transition, again
+        with the newline back, the greeting and the prompt are on separate rows
+        the way the Japanese has them, rather than running together. Whether
+        that is all you were seeing I cannot tell without watching it - if the
+        greeting is still sitting on the Buy/Sell page, a screenshot would
+        settle where on the screen it is surviving.
+
+
+Playthrough issues
+==================
+
+DONE - text that would not clear
+--------------------------------
+One bug, four symptoms. Menu and shop windows are never cleared between one
+string and the next; they did not need to be, because every Japanese glyph was
+a whole cell, so each line covered the line before it and left the cursor where
+the next string expected it. Half-width English covers half as much per
+character. Every line in these windows is now padded back to the width the
+Japanese filled. See "Covering, not just fitting" in docs/translating.md and
+`python3 tools/check_cover.py`.
+
+  [x] Drop Item menu option leaks an m when canceled out of (Use item)
+        the five submenu headers were 4 to 5 cells and the Japanese were all 5;
+        "Drop Item" is 4.5, so its last half-cell survived "Use Item". All five
+        padded to 5 cells.
+  [x] Shop text is writing over itself
+        "Welcome to my shop!" covered 9.5 of the 14 cells the Japanese filled,
+        so the menu that follows it started mid-line. Padded to 14.
+  [x] Item Storage (in the Barracks) is not clearing properly
+  [x] Appraiser as well
+  [x] Temple: text not clearing
+        52 strings across the appraiser, antiquary, shop, storage, temple and
+        inn padded back to their Japanese widths.
+  [x] Shop numbers don't clear properly when scrolling through the items
+        an engine bug, not a text one. $90:97C6 blanked `width + $A8 - 8` WHOLE
+        cells before the digits, which came to `width` exactly while a digit was
+        a whole cell too. With half-width digits the field shrank as the number
+        grew, so a longer number no longer reached over a shorter one. NUMPAD in
+        build/hw_patch.py counts the digits' cells instead, and the field is
+        `width` cells again whatever the value. Fixes every number in the game.
+
+DONE - wording
+--------------
+  [x] Beginning dialogue clunky ("all of a sudden")
+        now "Your father Gunas set out / on a journey without / warning, the
+        very day / after she died..."
+  [x] "You shall sit an examination." very clunky
+        now "Now for your examination."
+  [x] rename the resource for prayers into Faith
+        the spell type stays "prayer", the resource it spends is "Faith", so
+        "A prayer costs you Faith" reads. 15 strings and the Glossary.
+  [x] library in Kroag: "concerning this Ilias" -> "concerning the world"
+  [x]   "This Ilias is a place" -> "This world is a place"
+  [x]   "three cities of men in this Ilias" -> "...in this world"
+  [x]   "He was a mage of the same hour as" -> "He was a mage contemporary of"
+  [x]   "far from certain ---" runs out of the text border
+        it was 14.5 cells in a 14-cell box. Rewrapped onto four lines, and
+        "this Ilias" became "the world" to match the rest.
+  [x] The shop says Gold when the currency is Bezetta or Onyx
+        所持金 is "money in hand", not a currency - the currency is Bezetta or
+        Onyx and <NAME:0801> prints its mark. Now "Money". Say if you would
+        rather have Funds, Purse or Held.
+
+DONE - intro crawl
+------------------
+  [x] Look into line breaks/paragraph spacing for the wall of text scroll
+        the Japanese crawl is double-spaced, with a second blank row between
+        paragraphs, and centred; the English was set solid and left-aligned.
+        build/prologue_patch.py now does the spacing and the centring, and a
+        blank row on the `Intro crawl` sheet is a paragraph break.
+
+OPEN
+----
+  [X] 5th Spell in Cast Spell menu is leaking text when canceled to main menu
+        Not reproduced. The main menu repaints all eleven of its rows at the
+        full sixteen cells, so anything drawn in rows 4-14 is covered; rows 0-3
+        are the header bar and nothing in the main menu touches them. The spell
+        names themselves are short against the Japanese, but padding them would
+        put visible gaps into "Casting <NAME>." and "Learned <NAME> Lev.N!",
+        which print the same strings inline - and the menu pads the name field
+        itself, so they should not be the cause.
+        A screenshot would settle it. While looking, the spell description panel
+        WAS leaking the same way - Cure's " condition." is 5.5 cells where
+        Heal's " one party member." was 9 - and those 19 descriptions are fixed.
+
+
+

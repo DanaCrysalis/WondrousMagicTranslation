@@ -32,6 +32,7 @@ import book
 BOOK = os.path.join(paths.DATA, 'Wondrous_Magic_script.ods')
 
 BLOCK_A = (0x0912C0, 0x092FDF)
+NL = chr(10)
 
 _cache = {}
 
@@ -150,6 +151,31 @@ def authored():
     return _cache['authored']
 
 
+def _restore_trailing_newline(out):
+    """Put back the newline the original string ends with.
+
+    608 of the 868 strings end `$0D $00` - a newline, and then the terminator -
+    and it is not decoration. It leaves the cursor at the start of the next row,
+    so the next string drawn into the same window starts where it should. Bare
+    item names, which are printed inline in the middle of a sentence, do not
+    have one; anything that occupies a line of its own does.
+
+    The workbook never carried it. The extractor rstrips it, and a trailing
+    blank line in a spreadsheet cell would not survive being edited anyway. So
+    every English string handed the next one a cursor halfway along a line,
+    which is what made the shop greeting run into the shop menu and is half of
+    why those windows looked like they were not clearing.
+
+    It is plumbing rather than text, so it is put back here rather than
+    authored. What the sheet says is still what appears.
+    """
+    for off, en in out.items():
+        toks, _ = wmtool.decode(off)
+        if wmtool.text(toks).endswith(NL) and not en.endswith(NL):
+            out[off] = en + NL
+    return out
+
+
 def text():
     """{offset: English} for blocks A, B and C together."""
     if 'text' not in _cache:
@@ -167,7 +193,7 @@ def text():
                              % (len(missing), len(names()), missing[:3], hint))
         out = dict(a)
         out.update(authored())
-        _cache['text'] = out
+        _cache['text'] = _restore_trailing_newline(out)
     return _cache['text']
 
 

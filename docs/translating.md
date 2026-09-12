@@ -81,6 +81,76 @@ is what the window can show, and no amount of compression helps:
 fit, use a manufactured glyph rather than truncating — `<G80>` is a house, and
 the place names use it for "X's house".
 
+## The trailing newline
+
+608 of the 868 strings end `$0D $00` in the ROM - a newline, and then the
+terminator. It is not decoration. It leaves the cursor at the start of the next
+row, so the next string drawn into the same window starts where it should.
+Bare item names, which are printed inline in the middle of a sentence, do not
+have one; anything that occupies a line of its own does.
+
+The workbook does not carry it, and should not: the extractor strips it, and a
+trailing blank line in a spreadsheet cell would not survive being edited.
+`sheet.text()` puts it back, on every string whose Japanese original has one.
+So **do not end an English cell with a blank line** - it is added for you, and
+what the sheet says is still what appears.
+
+Without it, every string handed the next one a cursor halfway along a line. That
+is what put "Welcome to my shop!" and "What can I get you?" on the same row.
+
+## Covering, not just fitting
+
+A third limit, and the one that is easiest to miss: **a line in a window that is
+not cleared must be at least as wide, in cells, as the Japanese line it
+replaces.**
+
+Menu and shop windows are never cleared between one string and the next. They
+did not need to be. Every Japanese glyph was one whole cell, so each line
+physically covered the line before it and left the cursor where the next string
+expected to start. Half-width English covers half as much per character, so a
+narrower line leaves the tail of the last one on screen, and the next string
+starts in the wrong column. That is one bug, and it looks like several:
+
+    Welcome to my shop!        ran into "What can I get you?" on the same row
+    Item Storage, Appraiser    kept stale words from the previous prompt
+    Temple                     the same
+    Use Item                   kept the m of "Drop Item" behind it
+
+Pad with `　`, the full-width space: one whole cell, and one byte. A plain
+space is half a cell, so a half-cell shortfall takes one space and then
+full-width spaces. Never pad past the Japanese width - the window is only so
+wide, and the cursor wraps onto the same row rather than the next one.
+
+### Never pad a line whose width is decided at runtime
+
+`Sell the <NAME:0301>?` is not nine cells wide. `<NAME:sWW>` pads *up* to WW
+cells and grows straight past it when the name needs more, and which item it is
+is not known until the game runs - "Wooden Staff" is six cells where the field
+declares one. So that line is 11.5 cells, not 9.
+
+The Japanese sized these lines so the longest name just fits. There is nothing
+spare to pad, and padding them can only overflow: three cells added to that line
+took it to 14.5, and the half cell past the window is the right border, which
+duly disappeared. Leave any line carrying a `<NAME>` field alone.
+
+    python3 tools/check_cover.py
+
+lists every line that is short. It is a report, not a gate: the spell names are
+short on purpose, because they are printed inline in battle as well as in the
+menu, where the menu's own name field pads them. It also flags, with `!!`, any
+line whose worst case - every field at its longest - would run past the
+fourteen-cell window.
+
+## The intro crawl, again
+
+The Japanese crawl is double-spaced - a blank row after every single line - and
+centred. In English, at thirty characters a line rather than fourteen glyphs,
+the double spacing just spreads it thin, so only the paragraph breaks are kept:
+**a blank row on the `Intro crawl` sheet is a paragraph break**, and
+`build/prologue_patch.py` does the centring. Centring is to an even column,
+because a cell is a pair of letters and an odd shift re-pairs every letter on
+the line and mints a new glyph for each one.
+
 ## Block A
 
 151 items, each a short name string followed by a description string. The

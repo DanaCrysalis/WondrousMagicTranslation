@@ -53,10 +53,27 @@ def row(text=''):
             [g + 0x20 for g in cells[8:]] + [0x000A])
 
 
+def centre(text):
+    """Centre in the 32 columns, on an even offset.
+
+    The Japanese crawl is centred and the English was not, which is half of why
+    it read as a wall. Even offsets only: a cell is a PAIR of letters, so an odd
+    shift re-pairs every letter on the line and mints a new glyph for each one.
+    """
+    return ' ' * (((COLS - len(text)) // 2) & ~1) + text
+
+
 def build(lines, budget_words):
+    """One row per line, and a blank row between paragraphs.
+
+    The Japanese is double-spaced - a blank row after every single line - which
+    in English, at roughly thirty characters a line rather than fourteen glyphs,
+    just spreads it thin. So only the paragraph breaks are kept: a blank line on
+    the sheet is a blank row here.
+    """
     out = []
     for t in lines:
-        out += row(t)
+        out += row(centre(t)) if t else row()
     while len(out) + 18 <= budget_words:
         out += row()
     left = budget_words - len(out)
