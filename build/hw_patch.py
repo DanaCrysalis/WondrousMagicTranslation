@@ -198,6 +198,42 @@ label('CLOSE')                   # for the $07 and $09 handlers
 emit(0x20); word_at('CELL')      # JSR CELL
 emit(0x4C, 0x6A, 0x98)           # JMP $986A      what both handlers did first
 
+# ------------------------------------------------------------ number fields --
+# $97C6 blanks the leading zeros of a <NUM7>/<NUM8> field and then draws the
+# significant digits. It blanked `width + $A8 - 8` WHOLE cells, which was exactly
+# right while a digit was a whole cell too: blanks plus digits came to `width`
+# every time, so the field was always the same size and always right-aligned.
+#
+# Half-width digits are half a cell, so the field became `width + A8 - 8 + nd/2`
+# cells - it SHRANK as the number grew, and moved. Scrolling a shop list from a
+# short price to a long one left the head of the old number standing, because the
+# new field no longer reached that far left.
+#
+# Count the digits' cells instead: blank `width - ceil(nd/2)`, and when nd is odd
+# open the run with one half-width blank so the digits still end on the cell the
+# field ends on. The field is `width` cells wide again whatever the value.
+label('NUMPAD')                  # $01,S/$02,S return address, $03,S = $A8
+emit(0x20, 0x59, 0x98)           # JSR $9859      A = field width, in cells
+emit(0x48)                       # PHA            $01,S = width, $04,S = $A8
+emit(0xA9, 0x09)                 # LDA #$09
+emit(0x38)                       # SEC
+emit(0xE3, 0x04)                 # SBC $04,S      9 - $A8
+emit(0x4A)                       # LSR A          = ceil(digits / 2)
+emit(0x49, 0xFF)                 # EOR #$FF
+emit(0x38)                       # SEC
+emit(0x63, 0x01)                 # ADC $01,S      width - ceil(digits / 2)
+emit(0x20, 0x5D, 0x96)           # JSR $965D      blank that many whole cells
+emit(0x68)                       # PLA            drop the width
+emit(0xA3, 0x03)                 # LDA $03,S      $A8 again
+emit(0x4A)                       # LSR A          carry = $A8 odd = digits odd
+emit(0x90); rel_at('NUMDONE')    # BCC NUMDONE
+emit(0xA9, 0x5F)                 # LDA #$5F       $7F - $20, the half-width blank
+emit(0xEB)                       # XBA
+emit(0xA9, 0x01)                 # LDA #$01       text cell
+emit(0x20, 0x05, 0x96)           # JSR $9605
+label('NUMDONE')
+emit(0x60)                       # RTS
+
 # --------------------------------------------------------------- dictionary --
 # $1E used to be the kanji escape. With the script in ASCII the kanji bank is
 # dead, so $1E nn is repurposed as a dictionary reference: entry nn is printed
@@ -357,6 +393,12 @@ patch(0x081A6B, bytes([0x4C, labels['NEWUP'] & 0xFF, labels['NEWUP'] >> 8]),
 patch(0x081ACB, bytes([0x4C, labels['HIATTR'] & 0xFF, labels['HIATTR'] >> 8]) + b'\xea' * 5,
       expect=[0xBD, 0x00, 0x2C, 0x29, 0x00, 0xFC, 0x05, 0xA8])
 
+# $97C6 - the leading-blank count of a number field, see NUMPAD above. The
+# twelve bytes it replaces are JSR $9859 / CLC / ADC $01,S / SEC / SBC #$08 /
+# JSR $965D; three of them become the call and the rest are padded out.
+patch(0x0817C6, bytes([0x20, labels['NUMPAD'] & 0xFF, labels['NUMPAD'] >> 8]) + b'\xea' * 9,
+      expect=[0x20, 0x59, 0x98, 0x18, 0x63, 0x01, 0x38, 0xE9, 0x08, 0x20, 0x5D, 0x96])
+
 # $97E8 - the decimal printer builds each digit with ADC #$A2, the Japanese
 # font's glyph index for '0'. What $9605 takes is an index, not a script byte:
 # RENDER does INC A to get h, and glyph h draws ASCII h + $1F. So '0' at ASCII
@@ -397,4 +439,6 @@ if __name__ == '__main__':
     print('new code %d bytes at ROM $%06X ($90:%04X)' % (len(code), BASE, ORG))
     for n in sorted(labels, key=lambda k: labels[k]):
         print('  %-10s $90:%04X' % (n, labels[n]))
-    open('/home/claude/rom_hw.sfc', 'wb').write(bytes(ROM))
+    out = os.path.join(paths.ROOT, 'rom', 'rom_hw.sfc')
+    open(out, 'wb').write(bytes(ROM))
+    print('wrote %s' % out)

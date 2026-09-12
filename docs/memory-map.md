@@ -72,6 +72,7 @@ as text invents thousands of phantom strings, which is what made the workbook
 | `$90:9ACB` | `LDA $2C00,X / AND #$FC00` | `JMP HIATTR` |
 | `$90:9738` | `JSR $986A` | `JSR CLOSE` — close a half-open cell first |
 | `$90:970B` | `JSR $986A` | `JSR CLOSE` |
+| `$90:97C6` | `JSR $9859 / CLC / ADC $01,S / SEC / SBC #$08 / JSR $965D` | `JSR NUMPAD` — a number field is `width` cells again |
 | `$90:97E9` | `ADC #$A2` | `ADC #$10` — digits were the Japanese font's base |
 | `$91:D033`, `$91:D077` | `$D9` | `$2F` — status separator, full-width slash |
 
