@@ -94,11 +94,17 @@ if __name__ == '__main__':
         if off in block_c:                              # half-width characters
             w = wmtool.cells(block_c[off]) * 2
             assert w <= 10, '%06X: nameplate %s wide' % (off, w)
-    free = [en for off, en in sorted(strings.items()) if off not in fixed]
-    # `free` is everything that gets repacked, so the ceiling is the sum of the
-    # room both packers have. They each assert their own extents afterwards.
-    room = (blockb.LIMIT - blockb.START) + sum(hi - lo for lo, hi in blockd.EXTENTS)
-    entries = dictionary.fit_mixed(budgets, free, room)
+    # The repacked blocks, each with its OWN ceiling. Handing the fitter the sum
+    # of the two let it spend block D's two thousand spare bytes on block B,
+    # which cannot reach them: the fit came out inside the total and over block
+    # B's own extent, which blockb.build then refused.
+    groups = [([en for off, en in sorted(strings.items())
+                if off >= blockb.START and off not in fixed],
+               blockb.LIMIT - blockb.START),
+              ([en for off, en in sorted(strings.items())
+                if blockd.START <= off < blockd.END],
+               sum(hi - lo for lo, hi in blockd.EXTENTS))]
+    entries = dictionary.fit_mixed(budgets, groups)
     dsize = dictionary.write(rom, entries)
     over = []
     for off, en in sorted(fixed.items()):

@@ -33,7 +33,10 @@ TABLE = 0x1F2000          # $3E:A000, 512 x uint16
 ENTRIES = 0x1F2600        # $3E:A600
 LIMIT = 0x1F8000
 BANK1 = 254               # slots 0-253 cost two bytes; 254 and 255 are escapes
-MAX_ENTRIES = 765         # 256-511 via $FF, 512-767 via $FE, both three bytes
+MAX_ENTRIES = 766         # 256-511 via $FF, 512-767 via $FE, both three bytes.
+                          # 766 indices fill the 768-slot table exactly: slot()
+                          # steps over the two escape markers, so index 765 is
+                          # slot 767, and 765 left the last slot unused.
 
 
 def slot(i):
@@ -270,12 +273,18 @@ def _parse(text, entries):
     return out
 
 
-def fit_mixed(fixed, free, free_limit, rounds=14, promote=20):
+def fit_mixed(fixed, groups, rounds=14, promote=20):
     """Choose entries for a script split between fixed-length and free strings.
 
     `fixed` is [(text, budget)] - blocks A and C, written back in place, so every
-    one of them has to fit. `free` is the block B texts, which are repacked and
-    only have to come in under `free_limit` in total.
+    one of them has to fit. `groups` is [(texts, limit)], one per repacked block:
+    its strings have no individual budget and only have to come in under that
+    block's ceiling in total.
+
+    One limit per block, not one between them. Blocks B and D are repacked into
+    extents of their own, and giving the search their sum let it spend block D's
+    two thousand spare bytes on block B, which has nowhere to put them - the fit
+    came out inside the total and twenty-five bytes over block B's own ceiling.
 
     Two things matter more than the raw entry choice. Only the first 254 slots
     encode in two bytes; everything above costs three. And the fixed strings are
@@ -285,18 +294,41 @@ def fit_mixed(fixed, free, free_limit, rounds=14, promote=20):
     the cheap ones nothing much uses. Any step that pushes the free block over
     its ceiling is measured but not kept."""
     ftexts = [t for t, _b in fixed]
+    free = [t for ts, _l in groups for t in ts]
+
+    def free_uses(ent):
+        """How often each entry is referenced by the repacked blocks.
+
+        Demoting an entry out of the cheap bank costs a byte at EVERY
+        reference, not only the ones in the fixed strings. Choosing the
+        victims on fixed usage alone was picking entries block B leans on
+        hundreds of times, and the rescue step that fixed the last eight
+        fixed strings put 132 bytes back into block B doing it.
+        """
+        use = {}
+        for t in free:
+            for e in _parse(t, ent):
+                use[e] = use.get(e, 0) + 1
+        return use
     head = choose(ftexts, BANK1)
     tail = [e for e in choose(ftexts + list(free), MAX_ENTRIES) if e not in set(head)]
     entries = head + tail[:MAX_ENTRIES - len(head)]
 
+    def sizes(ent):
+        return [sum(len(encode(t, ent)) for t in ts) for ts, _l in groups]
+
+    def fits(sz):
+        return all(n <= l for n, (_ts, l) in zip(sz, groups))
+
     def score(ent):
         over = [len(encode(t, ent)) - b for t, b in fixed]
+        sz = sizes(ent)
         return (sum(x for x in over if x > 0),
-                sum(1 for x in over if x > 0),
-                sum(len(encode(t, ent)) for t in free))
+                sum(1 for x in over if x > 0), sz)
 
     excess, n, size = score(entries)
-    _say('mixed fit: %d bytes over on %d strings, free block %d' % (excess, n, size))
+    _say('mixed fit: %d bytes over on %d strings, blocks %s'
+         % (excess, n, size))
     best = (excess, list(entries), size)
     for _r in range(rounds):
         pos = {e: i for i, e in enumerate(entries)}
@@ -314,13 +346,15 @@ def fit_mixed(fixed, free, free_limit, rounds=14, promote=20):
         if not up:
             break
         cheap = entries[:BANK1]
-        down = set(sorted(cheap, key=lambda e: cheap_use.get(e, 0))[:len(up)])
+        fuse = free_uses(entries)
+        cost = lambda e: cheap_use.get(e, 0) + fuse.get(e, 0)
+        down = set(sorted(cheap, key=cost)[:len(up)])
         new_cheap = [e for e in cheap if e not in down] + up
         entries = new_cheap + [e for e in entries if e not in set(new_cheap)]
         excess, n, size = score(entries)
-        _say('  round %d: %d bytes over on %d strings, free block %d%s'
-             % (_r + 1, excess, n, size, '' if size <= free_limit else '  OVER'))
-        if size <= free_limit and excess < best[0]:
+        _say('  round %d: %d bytes over on %d strings, blocks %s%s'
+             % (_r + 1, excess, n, size, '' if fits(size) else '  OVER'))
+        if fits(size) and excess < best[0]:
             best = (excess, list(entries), size)
         if best[0] == 0:
             return best[1]
@@ -352,14 +386,31 @@ def fit_mixed(fixed, free, free_limit, rounds=14, promote=20):
         if not add:
             break
         cheap = entries[:BANK1]
-        down = set(sorted(cheap, key=lambda e: cheap_use.get(e, 0))[:len(add)])
+        fuse = free_uses(entries)
+        cost = lambda e: cheap_use.get(e, 0) + fuse.get(e, 0)
+        down = set(sorted(cheap, key=cost)[:len(add)])
         new_cheap = add + [e for e in cheap if e not in down]
         cand_entries = new_cheap + [e for e in entries if e not in set(new_cheap)]
         cand_entries = cand_entries[:MAX_ENTRIES]
         excess, n, size = score(cand_entries)
-        _say('  rescue %d: %d bytes over on %d strings, free block %d%s'
-             % (_r + 1, excess, n, size, '' if size <= free_limit else '  OVER'))
-        if size > free_limit:
+        if not fits(size):
+            # All of them together will not fit. Add them one at a time and
+            # keep whichever still leave every block inside its ceiling -
+            # some of the eight are worth more than others.
+            kept = list(entries)
+            for one in add:
+                cheap1 = kept[:BANK1]
+                f1 = free_uses(kept)
+                victim = min(cheap1, key=lambda e: cheap_use.get(e, 0) + f1.get(e, 0))
+                trial = ([one] + [e for e in cheap1 if e != victim] +
+                         [e for e in kept if e not in set(cheap1)])[:MAX_ENTRIES]
+                e2, n2, s2 = score(trial)
+                if fits(s2) and e2 <= excess:
+                    kept, excess, n, size = trial, e2, n2, s2
+            cand_entries = kept
+        _say('  rescue %d: %d bytes over on %d strings, blocks %s%s'
+             % (_r + 1, excess, n, size, '' if fits(size) else '  OVER'))
+        if not fits(size):
             break
         entries = cand_entries
         if excess < best[0]:
