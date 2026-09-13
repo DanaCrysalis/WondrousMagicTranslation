@@ -1,6 +1,82 @@
 NEW ISSUES
 ==================
-"Well come... you who are" -> "Welcome... you who are"
+(none outstanding)
+
+
+ROUND 5 - all closed
+====================
+
+  [x] "Well come... you who are" -> "Welcome... you who are"   (B0044)
+
+  [x] Mage Earring description one character too long
+  [x] Goddess Idol description too long by one
+  [x] check the other items for the same thing
+        Fourteen description lines were twenty-nine or thirty characters where
+        the panel holds twenty-eight, so the last character - almost always the
+        full stop - sat on the border. Eleven description bodies, shared across
+        more items than that:
+
+          Holy Shield etc  health when damage is taken.  -> when you are hit.
+          Magic Sword      Only palace warriors and / magic warriors may equip it.
+                                                         -> Only palace and magic /
+                                                            warriors may equip it.
+          Satan Rod        Carries the effect of Death.  -> It carries Death's effect.
+          Terra Armour     Warriors only. Halves damage  -> ...Halves / damage and...
+          Vega Boots       same, rewrapped
+          Devil Mace       Anyone may equip it. Carries  -> ...it. / Carries the Quake effect.
+          Mage Earring     it. Experience keeps rising.  -> it. Your EXP keeps rising.
+          Luna Brooch      Nullifies paralysing attacks. -> Nullifies paralysis.
+          Astral Stone     Nullifies petrifying attacks. -> Nullifies petrification.
+          Queen's Ring     use restores your condition.  -> use cures your condition.
+          Goddess Idol     goddess. Restores all faith.  -> goddess. Restores faith.
+
+        And three in block B: the fortune-teller, and the two lottery lines,
+        where "<EE9><EE9>Nothing wrong, I hope...?" is only twenty-five
+        characters but fourteen and a half CELLS, because each dash is a whole
+        one.
+
+        That last case is why check_script.py never caught any of this properly.
+        Its width check counted characters after stripping tokens, so it flagged
+        the item descriptions as "line is 29 wide" - which was read as noise for
+        weeks - and missed the block B ones entirely. It counts cells now, the
+        way the renderer does: a full-width space, a frame tile and an icon are
+        each one whole cell, a half-width glyph is half of one. Nothing in the
+        script is over the fourteen-cell window any more.
+
+  [x] High Speed is one character too long (spells get nine)
+        Haste, which is what English calls it, and the description already read
+        "Quickens the party during battle". Name, description panel and the
+        Hourglass that casts it. Every other spell was already nine or under -
+        Resurrect is exactly nine.
+
+  [x] the onyx message: drop "And then,", match the item find message
+        Now "Obtained <N> Onyx" on one row, beside "Obtained the <item>".
+
+
+  [!] AND THE REASON THE BUILD NEARLY DID NOT FIT
+        Shortening all that text pushed block B twenty-five bytes past its
+        ceiling, which made no sense - the strings got SMALLER. Two real bugs in
+        the dictionary fitter were hiding behind the slack:
+
+        1. Blocks B and D are repacked into separate extents, but the fitter was
+           handed the SUM of their room as one ceiling. It happily spent block
+           D's two thousand spare bytes on block B, which cannot reach them.
+           One limit per block now.
+
+        2. Demoting an entry out of the cheap two-byte bank costs a byte at
+           EVERY reference, but the victim was chosen by how often the FIXED
+           strings used it - block B's use of it counted for nothing. So the
+           fitter kept demoting entries block B leans on hundreds of times.
+           Demotion is priced across every block now.
+
+        Block B was at 243 spare before this round and is at 3,213 now. The
+        second bug had been quietly costing about three thousand bytes all
+        along. The rescue pass also adds its entries one at a time and keeps
+        what fits, instead of giving up on the first combination that does not.
+
+        Also: MAX_ENTRIES was 765 where the 768-slot table holds 766 - slot()
+        steps over the two escape markers, so index 765 is slot 767. The last
+        slot had never been used.
 
 
 ROUND 4 - all closed
