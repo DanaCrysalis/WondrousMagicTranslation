@@ -3,6 +3,56 @@ NEW ISSUES
 (none outstanding)
 
 
+ROUND 6 - all closed
+====================
+
+  [x] appraising: "That will be / 50 Bezetta ---" breaks the right border
+        AND IT EXPLAINS THE OTHER TWO BORDER REPORTS. My cell model was wrong,
+        not just my arithmetic.
+
+        A whole-cell glyph will not share a cell. RENDER's static path closes
+        any half-open cell and steps PAST it before writing, and the <NAME>
+        field does the same in NEWARG. So a frame tile, a full-width space or an
+        icon following an odd run of letters costs an extra half cell. That line
+        is " 50 Bezetta" (5.5, half-open), then the two dashes close the cell and
+        step on, then a space, then six blanks - fifteen cells in a fourteen-cell
+        window. It was never fourteen; I had just been counting it wrong.
+
+        tools/check_script.py models the closing rule now, and check_cover.py
+        imports the same function rather than keeping its own copy - the two
+        checks have to agree about what fits. Re-run over the whole script, that
+        line was the ONLY one over the window, which is why it was the only one
+        being reported. The padding on it was buying nothing, so it is gone.
+
+  [x] leading space on the temple, appraiser, antiquary, inn, sundries lines
+  [x] "When the goddess's mage..." bad leading spaces
+  [x] the death message's second line has leading space
+        The Japanese indents short lines with full-width spaces to centre them.
+        English runs half again as long, so the indent centres nothing - it just
+        pushes the line right. It comes off 45 strings now and goes on the END
+        instead, so each line still covers as much of its row as it did.
+
+        Menu options keep their indent: those really are centred, and reading
+        down a column of them is the point. The rule is punctuation - a sentence
+        gets de-indented, a bare label like Yes or Appraise does not.
+
+  [x] "Obtained the <item>" -> "Obtained <item>"
+  [x] Recall should say "start of the dungeon" like the Beast Plume
+        Both now read that way. The eight remaining "labyrinth" lines are the
+        old labyrinth between Kroag and Zev, which keeps its name.
+  [x] "Ah forgive me, I am late with it." -> "Ah, where are my manners."
+  [x] "Give my want to me!" -> "Give the want to me!"
+  [x] drop the Batica speaker line so she carries straight on
+  [x] "I cannot even walk my grandchild" -> "walk with my grandchild"
+  [x] "Staff Quill" -> "StaffFeather"
+  [x] "Corp's House" -> "Cope's House"   (C0093, keeps the house glyph)
+  [x] Evil Staff: "Mages only. When used, it calls up a battle."
+  [x] "Use the Door Key?" scrolled off behind Yes/No
+        The blank row I put in last round to hold Yes and No on the rows the
+        cursor wanted was a row the box did not have. Three lines again, with
+        the <WAIT> still ahead of both answers.
+
+
 ROUND 5 - all closed
 ====================
 

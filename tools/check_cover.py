@@ -34,6 +34,7 @@ not a gate - it does not fail the build:
     same width, so they cover each other regardless.
 """
 import math, os, re, sys
+NL = chr(10)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import paths
 import book
@@ -50,36 +51,31 @@ RANGES = [
 ]
 
 
-def cells(line, japanese=False):
-    """Cell width of one line. Half-width ASCII is half a cell, all else one.
+from check_script import cells as _cells
 
-    <NAME:sWW> and <NUM7:sWW> pad to WW cells and grow past it when the value
-    needs more, so WW is the floor and that is what is counted here.
+
+def cells(line, japanese=False):
+    """Cell width. The Japanese column is every glyph a whole cell.
+
+    The English model lives in check_script.py - one copy of the cell-closing
+    rule, since both checks have to agree about what fits.
     """
+    if not japanese:
+        return _cells(line)
     n, i = 0.0, 0
     while i < len(line):
-        c = line[i]
-        if c == '<':
+        if line[i] == '<':
             j = line.index('>', i)
             body = line[i + 1:j]
             i = j + 1
             if body[0] in 'ES':
-                n += 1.0                              # frame tile, or $1F icon
-            elif body[0] == 'G':
-                n += 0.5                              # manufactured half glyph
+                n += 1.0
             elif body.startswith(('NAME:', 'NUM7:', 'NUM8:')):
                 n += int(body.split(':')[1][2:], 16)
             continue
-        i += 1
-        if c == '\n':
-            continue
-        if japanese or c == '\u3000' or ord(c) > 0x2000:
+        if line[i] != NL:
             n += 1.0
-        else:
-            n += 0.5
-
-
-        continue
+        i += 1
     return n
 
 

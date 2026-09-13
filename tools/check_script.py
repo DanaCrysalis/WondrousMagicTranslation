@@ -28,31 +28,55 @@ RATIO = 2.6
 
 
 def cells(line):
-    """Cell width of one line: a half-width ASCII glyph is half a cell.
+    """Cell width of one line, the way $90:9605 actually lays it out.
 
-    Everything else is a whole one - a full-width space, a window frame
-    tile, a $1F icon - and a <NAME> or <NUM> field is as wide as the value
-    it prints, with its declared width as the floor. Counting characters
-    instead misses both directions at once.
+    A half-width ASCII glyph is half a cell. Everything else is a whole one - a
+    full-width space, a window frame tile, a $1F icon - and a <NAME> or <NUM>
+    field is as wide as the value it prints, with its declared width the floor.
+
+    The part that is easy to miss, and that counting characters cannot express:
+    a whole-cell glyph will not share a cell. RENDER's static path closes any
+    half-open cell and steps past it before writing, and the <NAME> field does
+    the same in NEWARG. So a frame tile after an odd run of letters costs an
+    extra half cell - which is how " 50 Bezetta<EE9><EE9> " and six blanks came
+    to fifteen cells in a fourteen-cell window and ate the right border.
     """
-    n, i = 0.0, 0
+    n, half, i = 0.0, False, 0
+
+    def close():
+        nonlocal n, half
+        if half:
+            n += 0.5
+            half = False
+
     while i < len(line):
         c = line[i]
         if c == '<':
             j = line.index('>', i)
             body = line[i + 1:j]
             i = j + 1
-            if body[0] in 'ES':
+            if body[0] in 'ES':              # frame tile or icon: a whole cell
+                close()
                 n += 1.0
-            elif body[0] == 'G':
+            elif body[0] == 'G':             # a manufactured half-width glyph
                 n += 0.5
+                half = not half
             elif body.startswith(('NAME:', 'NUM7:', 'NUM8:')):
+                close()
                 n += int(body.split(':')[1][2:], 16)
             continue
         i += 1
-        if c != '\n':
-            n += 1.0 if (c == '\u3000' or ord(c) > 0x2000) else 0.5
+        if c == '\n':
+            continue
+        if c == '　' or ord(c) > 0x2000:
+            close()
+            n += 1.0
+        else:
+            n += 0.5
+            half = not half
+    close()                                  # the newline closes the last cell
     return n
+
 
 # offsets whose layout is columns, not prose - width is checked by build.py
 SKIP_WIDTH = range(0x090000, 0x090EF6)
