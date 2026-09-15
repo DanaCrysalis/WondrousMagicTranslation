@@ -3,6 +3,45 @@ NEW ISSUES
 (none outstanding)
 
 
+ROUND 7 - all closed
+====================
+
+  [x] no space between the number and Bezetta at the temple
+  [x] no space in the inn's "###for the whole lot."
+        Mine, from last round. The de-indent pass matched ANY leading <...> as a
+        control code to step over before the indentation - but <NUM7> is not a
+        control code, it draws, and the space after it is what separates the
+        number from the word. The regex took the field as a prefix and stripped
+        the space as if it were indentation.
+
+        Three lines, not two: the temple's offering, the inn's total, and the
+        Onyx the inn takes when you are short of Bezetta, which you had not hit
+        yet. All three restored from the workbook as it stood before that pass.
+
+  [x] "I came to this Darles to hold back" -> "I came to Darles to hold back"
+  [x] "So I came." is redundant
+        The Japanese splits one sentence across the pause - the purpose before
+        it and 「やってきました」 after - which is how the English came to say
+        "came" twice. The <WAIT> has to stay or the token check fails against
+        the Japanese, so the beat after it is now "That was why." rather than a
+        second "I came". Four words of mine; reword freely.
+
+  [x] "The last gift to you from Silia and from me ......it is."
+        -> "This is...... the last gift to you from me and Silia......"
+  [x] Summon Harp: "Summons a random battle, once."
+  [x] "Sheila went all through this Ilias," -> "Sheila travelled the world,"
+        travelLED, two Ls - the Glossary asks for British spelling throughout,
+        the way armour and paralysing are. Say if you want the single L.
+  [x] "All around was still." -> "The room was completely still."
+        Thirty characters, so it takes two rows. It has a page to itself, so
+        there is room.
+  [x] "rang in the dark magic guild." -> "rang in the unlit magic guild."
+  [x] "You are only being worked by" -> "being used by"
+  [x] "I am not being worked by" -> "I am not being used by"
+  [x] "I who will work Ivuas" -> "I who will use Ivuas"
+  [x] "now he is only being worked by Ivuas" -> "being used by Ivuas"
+
+
 ROUND 6 - all closed
 ====================
 
