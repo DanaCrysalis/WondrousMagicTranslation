@@ -1,4 +1,6 @@
-- `Wondrous_Magic_script.xlsx` — every string with its English, glossary and control codes.
+- `Wondrous_Magic_script.ods` — every string with its English, the battle monster
+  names, the glossary and the control codes. OpenDocument; LibreOffice, Excel and
+  Google Sheets all open it. `build/book.py` reads and writes it via odfpy.
   Rebuild with `python3 tools/make_spreadsheet.py`; do not hand-edit, the English lives
   in `build/script_a.py`, `script_b.py` and `script_c.py`.
 - `script_dump.txt` — the same script as plain text

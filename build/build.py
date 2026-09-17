@@ -6,8 +6,10 @@
   3. English intro poem/prologue  RUX archive $132000 + pair font $138000
   4. Blocks A, B and C plus the dictionary at $1F2000
   5. Title screen and name entry
+  6. Battle monster names       ROM $152000 font, $153000 table, $02:F500 code
+  7. Map nameplates             assets/plates/*.png -> ROM $0B3D68
 
-All English comes from data/Wondrous_Magic_script.xlsx by way of build/sheet.py.
+All English comes from data/Wondrous_Magic_script.ods by way of build/sheet.py.
 There are no script_*.py tables any more.
 
 The Japanese font at $0A8000 is deliberately left untouched. The title screen and
@@ -92,11 +94,17 @@ if __name__ == '__main__':
         if off in block_c:                              # half-width characters
             w = wmtool.cells(block_c[off]) * 2
             assert w <= 10, '%06X: nameplate %s wide' % (off, w)
-    free = [en for off, en in sorted(strings.items()) if off not in fixed]
-    # `free` is everything that gets repacked, so the ceiling is the sum of the
-    # room both packers have. They each assert their own extents afterwards.
-    room = (blockb.LIMIT - blockb.START) + sum(hi - lo for lo, hi in blockd.EXTENTS)
-    entries = dictionary.fit_mixed(budgets, free, room)
+    # The repacked blocks, each with its OWN ceiling. Handing the fitter the sum
+    # of the two let it spend block D's two thousand spare bytes on block B,
+    # which cannot reach them: the fit came out inside the total and over block
+    # B's own extent, which blockb.build then refused.
+    groups = [([en for off, en in sorted(strings.items())
+                if off >= blockb.START and off not in fixed],
+               blockb.LIMIT - blockb.START),
+              ([en for off, en in sorted(strings.items())
+                if blockd.START <= off < blockd.END],
+               sum(hi - lo for lo, hi in blockd.EXTENTS))]
+    entries = dictionary.fit_mixed(budgets, groups)
     dsize = dictionary.write(rom, entries)
     over = []
     for off, en in sorted(fixed.items()):
@@ -124,9 +132,25 @@ if __name__ == '__main__':
     print('block D: %d hints repacked into %d bytes, %d spare, table rewritten'
           % (sum(1 for o in strings if blockd.START <= o < blockd.END), dused, dspare))
 
-    # 6. title screen and name entry
+    # 6. battle monster names - not script, see build/battle_names.py
+    import battle_names
+    fsize, fwas, csize = battle_names.apply(rom, sheet.monsters())
+    print('monster names: %d entries of %d, font %d bytes (was %d), code %d bytes'
+          % (battle_names.ENTRIES, battle_names.WIDTH, fsize, fwas, csize))
+
+    # 7. map nameplates - art rather than text, so the PNGs are the source.
+    # Editing a plate means editing assets/plates/NN_Name.png and rebuilding;
+    # `python3 tools/plates.py draw out/` writes a Latin first pass to copy in.
+    import plates
+    psize, pbudget = plates.apply(rom, os.path.join(paths.ASSETS, 'plates'))
+    print('map nameplates: %d plates, %d bytes of %d'
+          % (plates.PLATES, psize, pbudget))
+
+    # 8. title screen and name entry
     import systext
-    npairs = systext.apply(rom)
+    npairs, ncursor = systext.apply(rom)
+    print('name entry: %d buttons redrawn, cursor skip %d bytes at $02:F600'
+          % (len(systext.BUTTONS), ncursor))
     print('crawl pairs %d, system pairs %d, archive %d bytes, checksum $%04X'
           % (len(pp.pairs), npairs, len(enc), checksum(rom)))
     open(ROM_OUT, 'wb').write(bytes(rom))

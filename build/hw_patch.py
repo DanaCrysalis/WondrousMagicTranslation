@@ -198,6 +198,52 @@ label('CLOSE')                   # for the $07 and $09 handlers
 emit(0x20); word_at('CELL')      # JSR CELL
 emit(0x4C, 0x6A, 0x98)           # JMP $986A      what both handlers did first
 
+# ------------------------------------------------------------ number fields --
+# $97C6 blanks the leading zeros of a <NUM7>/<NUM8> field and then draws the
+# significant digits. It blanked `width + $A8 - 8` WHOLE cells, which was exactly
+# right while a digit was a whole cell too: blanks plus digits came to `width`
+# every time, so the field was always the same size and always right-aligned.
+#
+# Half-width digits are half a cell, so the field became `width + A8 - 8 + nd/2`
+# cells - it SHRANK as the number grew, and moved. Scrolling a shop list from a
+# short price to a long one left the head of the old number standing, because the
+# new field no longer reached that far left.
+#
+# Count the digits' cells instead: blank `width - ceil(nd/2)`, and when nd is odd
+# open the run with one half-width blank so the digits still end on the cell the
+# field ends on. The field is `width` cells wide again whatever the value.
+label('NUMPAD')                  # $01,S/$02,S return address, $03,S = $A8
+emit(0x20, 0x59, 0x98)           # JSR $9859      A = field width, in cells
+emit(0x48)                       # PHA            $01,S = width, $04,S = $A8
+emit(0xA9, 0x09)                 # LDA #$09
+emit(0x38)                       # SEC
+emit(0xE3, 0x04)                 # SBC $04,S      9 - $A8
+emit(0x4A)                       # LSR A          = ceil(digits / 2)
+emit(0x49, 0xFF)                 # EOR #$FF
+emit(0x38)                       # SEC
+emit(0x63, 0x01)                 # ADC $01,S      width - ceil(digits / 2)
+# Negative means the number has outgrown its field - three or more digits in
+# a <NUM7:vv01>, which is running prose. There is nothing to right-align
+# against, and the half blank below only doubled the space before an odd digit
+# count: "and gained  12345 experience." Let the digits flow like any other
+# text. A number that exactly fills its field keeps the old layout, so the spell
+# panel's level and cost stay the same width whatever their value.
+emit(0x30); rel_at('NUMFLOW')    # BMI NUMFLOW
+emit(0x20, 0x5D, 0x96)           # JSR $965D      blank that many whole cells
+emit(0x68)                       # PLA            drop the width
+emit(0xA3, 0x03)                 # LDA $03,S      $A8 again
+emit(0x4A)                       # LSR A          carry = $A8 odd = digits odd
+emit(0x90); rel_at('NUMDONE')    # BCC NUMDONE
+emit(0xA9, 0x5F)                 # LDA #$5F       $7F - $20, the half-width blank
+emit(0xEB)                       # XBA
+emit(0xA9, 0x01)                 # LDA #$01       text cell
+emit(0x20, 0x05, 0x96)           # JSR $9605
+label('NUMDONE')
+emit(0x60)                       # RTS
+label('NUMFLOW')
+emit(0x68)                       # PLA            drop the width
+emit(0x60)                       # RTS
+
 # --------------------------------------------------------------- dictionary --
 # $1E used to be the kanji escape. With the script in ASCII the kanji bank is
 # dead, so $1E nn is repurposed as a dictionary reference: entry nn is printed
@@ -357,6 +403,12 @@ patch(0x081A6B, bytes([0x4C, labels['NEWUP'] & 0xFF, labels['NEWUP'] >> 8]),
 patch(0x081ACB, bytes([0x4C, labels['HIATTR'] & 0xFF, labels['HIATTR'] >> 8]) + b'\xea' * 5,
       expect=[0xBD, 0x00, 0x2C, 0x29, 0x00, 0xFC, 0x05, 0xA8])
 
+# $97C6 - the leading-blank count of a number field, see NUMPAD above. The
+# twelve bytes it replaces are JSR $9859 / CLC / ADC $01,S / SEC / SBC #$08 /
+# JSR $965D; three of them become the call and the rest are padded out.
+patch(0x0817C6, bytes([0x20, labels['NUMPAD'] & 0xFF, labels['NUMPAD'] >> 8]) + b'\xea' * 9,
+      expect=[0x20, 0x59, 0x98, 0x18, 0x63, 0x01, 0x38, 0xE9, 0x08, 0x20, 0x5D, 0x96])
+
 # $97E8 - the decimal printer builds each digit with ADC #$A2, the Japanese
 # font's glyph index for '0'. What $9605 takes is an index, not a script byte:
 # RENDER does INC A to get h, and glyph h draws ASCII h + $1F. So '0' at ASCII
@@ -380,27 +432,11 @@ patch(0x08D033, bytes([0x2F]), expect=[0xD9])
 patch(0x08D077, bytes([0x2F]), expect=[0xD9])
 
 # ---------------------------------------------------------- battle names --
-# Monster names are glyph indices into a 16x16 katakana font (ROM $152000,
-# LZSS, unpacks $2000 to $7E:4000) with the table at $153000: 63 entries of six
-# bytes, null padded. The drawing routine is $81:F9D4 and the per-glyph DMA
-# constants are all in $81:FA38-$FAB0:
-#
-#     $FA41  the sixth ASL      index * 64, the glyph stride
-#     $FA74  LDX #$0020         top half transfer size
-#     $FA98  LDA #$4020         bottom half source base
-#     $FAA9  LDX #$0020         bottom half transfer size
-#
-# Halving those four turns each glyph into an 8x16 half-width cell and gives the
-# block 256 slots instead of 128 - enough for a Latin font with no pair coding.
-# Tried and reverted: the glyphs came out overlapping, because the VRAM
-# destination step per glyph is computed at $FA18-$FA44 from the caller's tile
-# coordinates and still assumes a two-tile-wide cell. That sum has to halve too,
-# and the caller at $F9DC increments $084A and $084B once per glyph, so the
-# stride is not a constant sitting in this routine.
-#
-# Also needed before the loop count at $F9D4 (CPX #$0006) can go to twelve: the
-# name table restriped to 12-byte entries and relocated, since 63 * 12 = 756
-# bytes will not fit where 378 do, and its stride lives inside $01:DD71.
+# Monster names are not part of this engine at all - separate font, separate
+# renderer, separate table. They are done in build/battle_names.py, which is
+# also where the reason the four-DMA-constant halving could never work is
+# written up: BG3 is in 16x16 character mode, so a tilemap cell cannot be
+# eight pixels wide, and the fix is two half-width letters per cell instead.
 
 # $9738 - the $09 cursor move, and $970B - the $07 window setup. Both opened
 # with JSR $986A; they now go through CLOSE, which does the same thing after
@@ -413,4 +449,6 @@ if __name__ == '__main__':
     print('new code %d bytes at ROM $%06X ($90:%04X)' % (len(code), BASE, ORG))
     for n in sorted(labels, key=lambda k: labels[k]):
         print('  %-10s $90:%04X' % (n, labels[n]))
-    open('/home/claude/rom_hw.sfc', 'wb').write(bytes(ROM))
+    out = os.path.join(paths.ROOT, 'rom', 'rom_hw.sfc')
+    open(out, 'wb').write(bytes(ROM))
+    print('wrote %s' % out)

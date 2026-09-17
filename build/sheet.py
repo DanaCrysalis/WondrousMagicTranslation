@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """The workbook is the script.
 
-`data/Wondrous_Magic_script.xlsx` is now the only place English is authored.
+`data/Wondrous_Magic_script.ods` is now the only place English is authored.
 This module reads it and hands the build the same shapes the old script_a.py,
 script_b.py, script_c.py and the systext/prologue tables used to hand it:
 
     text()          {rom offset: English} for blocks A, B and C
+    monsters()      [str] the 63 battle names, in table order
     title()         {rom offset: English} for the title and save screens
     chart()         [str] the name entry grid, one string per row
     crawl()         ([str], [str]) the intro poem and the prologue
@@ -19,36 +20,34 @@ name occupied. So block A is authored on the `Item names` and `Descriptions`
 sheets, and its English column in `Script` is generated. Editing it there does
 nothing; `tools/refresh_spreadsheet.py` overwrites it.
 
-Everything is read once and cached. openpyxl is required at build time now.
+Everything is read once and cached. `build/book.py` does the OpenDocument
+reading, so odfpy is the build's spreadsheet dependency.
 """
 import os, re, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import paths
 import wmtool
+import book
 
-BOOK = os.path.join(paths.DATA, 'Wondrous_Magic_script.xlsx')
+BOOK = os.path.join(paths.DATA, 'Wondrous_Magic_script.ods')
 
-BLOCK_A = (0x0912C0, 0x092FDF)
+BLOCK_A = (0x0912BA, 0x092FDF)       # see wmtool.TEXT_BLOCKS
+NL = chr(10)
 
 _cache = {}
 
 
 def _book():
     if 'wb' not in _cache:
-        try:
-            import openpyxl
-        except ImportError:
-            raise SystemExit('the build reads the workbook now: pip install openpyxl')
-        if not os.path.exists(BOOK):
-            raise SystemExit('missing %s' % BOOK)
-        _cache['wb'] = openpyxl.load_workbook(BOOK, data_only=True)
+        _cache['wb'] = book.read(BOOK)
     return _cache['wb']
 
 
-def _rows(name, first=2):
-    ws = _book()[name]
-    for r in range(first, ws.max_row + 1):
-        yield [ws.cell(r, c).value for c in range(1, ws.max_column + 1)]
+def _rows(name, first=2, width=8):
+    """Rows from `first` on, 1-based, padded so unpacking never runs short."""
+    rows = _book()[name]
+    for row in rows[first - 1:]:
+        yield list(row) + [None] * (width - len(row))
 
 
 # ---------------------------------------------------------------- block A ----
@@ -105,6 +104,10 @@ def block_a():
         # name will not fit that, the icon run simply shifts left - it only has
         # to stay inside the 14-cell window.
         icons = icons.replace('＋', '+').replace('−', '-').replace('？', '?')
+        # The Japanese dropped the sign on a three-digit bonus - Luna Staff and
+        # Star Rod read 100 and 150 - because a full-width ＋ would not fit.
+        # A half-width one does, so every bonus reads the same way.
+        icons = re.sub(r'(<S3[678]>)(\d)', r'\1+\2', icons)
         if icons:
             pad = max(1, 2 * len(re.sub(r'<[^>]*>', '', jp_name)) - len(en_name))
         else:
@@ -118,6 +121,20 @@ def block_a():
         out[p] = line + '\n' + en_tail
         p = q
     return out, missing
+
+
+def monsters():
+    """The 63 battle monster names, in table order.
+
+    Not script - they are glyph indices in a font of their own, see
+    build/battle_names.py - but they are English that somebody has to write, so
+    they are authored here like everything else.
+    """
+    if 'monsters' not in _cache:
+        rows = [(int(i), '' if en is None else str(en))
+                for i, _rom, _jp, en, *_ in _rows('Monster names') if i is not None]
+        _cache['monsters'] = [n for _, n in sorted(rows)]
+    return _cache['monsters']
 
 
 # ------------------------------------------------------------ blocks B, C ----
@@ -138,15 +155,49 @@ def authored():
     return _cache['authored']
 
 
+def _restore_trailing_newline(out):
+    """Put back the newline the original string ends with.
+
+    608 of the 868 strings end `$0D $00` - a newline, and then the terminator -
+    and it is not decoration. It leaves the cursor at the start of the next row,
+    so the next string drawn into the same window starts where it should. Bare
+    item names, which are printed inline in the middle of a sentence, do not
+    have one; anything that occupies a line of its own does.
+
+    The workbook never carried it. The extractor rstrips it, and a trailing
+    blank line in a spreadsheet cell would not survive being edited anyway. So
+    every English string handed the next one a cursor halfway along a line,
+    which is what made the shop greeting run into the shop menu and is half of
+    why those windows looked like they were not clearing.
+
+    It is plumbing rather than text, so it is put back here rather than
+    authored. What the sheet says is still what appears.
+    """
+    for off, en in out.items():
+        toks, _ = wmtool.decode(off)
+        if wmtool.text(toks).endswith(NL) and not en.endswith(NL):
+            out[off] = en + NL
+    return out
+
+
 def text():
     """{offset: English} for blocks A, B and C together."""
     if 'text' not in _cache:
         a, missing = block_a()
         if missing:
-            raise SystemExit('block A: %d unmatched, first %r' % (len(missing), missing[:3]))
+            # Block A is matched by its Japanese, so a whitespace change in the
+            # workbook detaches every row at once rather than one. That is what
+            # a wholesale failure means; a handful means real untranslated text.
+            hint = ('\n  every row failed, so this is the workbook rather than the '
+                    'script - most block A bodies begin with a space, and a reader '
+                    'or writer that drops it will do exactly this. '
+                    'Try: python3 build/book.py'
+                    if len(missing) > len(names()) // 2 else '')
+            raise SystemExit('block A: %d of %d unmatched, first %r%s'
+                             % (len(missing), len(names()), missing[:3], hint))
         out = dict(a)
         out.update(authored())
-        _cache['text'] = out
+        _cache['text'] = _restore_trailing_newline(out)
     return _cache['text']
 
 
@@ -186,6 +237,7 @@ if __name__ == '__main__':
     t = text()
     poem, prologue = crawl()
     print('%s\n  blocks A+B+C  %d strings\n  title screen  %d\n'
-          '  name entry    %d rows\n  intro crawl   %d + %d lines'
+          '  name entry    %d rows\n  intro crawl   %d + %d lines\n'
+          '  monster names %d'
           % (os.path.basename(BOOK), len(t), len(title()),
-             len(chart()), len(poem), len(prologue)))
+             len(chart()), len(poem), len(prologue), len(monsters())))

@@ -83,7 +83,23 @@ laid end to end, so a chain can be followed from its first block.
 Long matches are copied by `JSL $00183A`, an `MVN $7e,$7e` trampoline.
 
 `tools/plates.py` implements the decompressor and the chain walk. Verified: block
-`$0B3D68` reproduces `$7E:4000-$7E:6800` in a savestate byte for byte.
+`$0B3D68` reproduces `$7E:4000-$7E:6800` in a savestate byte for byte. Both plate
+blocks unpack to `$7E:4000` — the call at `$91:8359` goes to the `$90:8728` entry
+point, which forces `Y = $4000` — one at a time, whichever the current map needs.
+
+`tools/lzss.py` does both directions. The encodable shapes are narrow — length 2
+only within 16 bytes, length 3-16 and 17-272 within 4096 — and the parse is a
+shortest path rather than a greedy walk, which comes in at or under the original
+encoder on every block in the ROM:
+
+    python3 tools/lzss.py        round-trip every known block
+
+Two things the encoder has to respect. The decompressor tests `CPX $04` *before*
+fetching each token, so a final group with unused flag bits costs nothing and
+there is no terminator — but it also means a match that would overrun the
+destination writes its tail past the end, so the last token has to land exactly
+on it. And long matches go through `MVN`, which copies forwards a byte at a
+time, so overlapping run-length matches are fine.
 
 ## Known blocks
 
@@ -91,7 +107,7 @@ Long matches are copied by `JSL $00183A`, an `MVN $7e,$7e` trampoline.
 |---|---|---|---|
 | `$0AF000` | `$2000` | `$7E:4000` | UI icons — buttons, hearts, item icons |
 | `$0B3D68` | `$2800` | `$7E:4000` | nameplates 1-10 |
-| `$0B4A1E` | `$2800` | `$7E:6800` | nameplates 11-20 |
+| `$0B4A1E` | `$2800` | `$7E:4000` | nameplates 11-20 |
 | `$0B5644` .. `$0BAF90` | `$1800` each | | world map terrain, 7 blocks |
 | `$152000` | `$2000` | `$7E:4000` | battle font, 128 × 16×16 katakana |
 

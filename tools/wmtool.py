@@ -42,7 +42,10 @@ FONT_KANJI = 0x0AB000         # 256 x 16x16 2bpp glyphs, $1E xx
 # glyph g at FONT + (g>>3)*0x200 + (g&7)*32 : 32 bytes (top half) and +0x100 (bottom half)
 # uploader: $90:9A67, reads $15:8000,X and $15:8100,X -> WRAM $7E:2E00/$2F00 -> VRAM DMA
 
-_T = json.load(open(os.path.join(paths.DATA,'table.json')))
+# encoding is explicit everywhere: table.json is UTF-8 and Windows opens text
+# files as cp1252 by default, which dies on the first kana.
+with open(os.path.join(paths.DATA, 'table.json'), encoding='utf-8') as _f:
+    _T = json.load(_f)
 TBL = {int(k, 16): v for k, v in _T['text'].items()}      # $20-$DF, from ROM font $0A8000
 EXT = {int(k, 16): v for k, v in _T['ext'].items()}       # $E0-$E4 flipped text glyphs
 KANJI = {int(k, 16): v for k, v in _T['kanji'].items()}   # $1E xx, from ROM font $0AB000
@@ -139,7 +142,7 @@ PTR_TABLES = [
 
 TEXT_BLOCKS = [
     ('C', 0x090000, 0x090EF6),   # menus, windows, status/system text (bank $92 $8000)
-    ('A', 0x0912C0, 0x092FDF),   # item / spell / equipment text
+    ('A', 0x0912BA, 0x092FDF),   # item / spell / equipment text
     ('D', 0x09316E, 0x093943),   # Rinkle's area hints, table at $0930F7
     ('B', 0x098340, 0x0A5625),   # main story script
     ('E', 0x08D023, 0x08D08E),   # status screen layout, bank $91
@@ -150,6 +153,13 @@ TEXT_BLOCKS = [
 # ending at $092FD3. Past it the bank holds map data with one island of script
 # in it: 51 hint strings with their own table at $0930F7. Walking the whole
 # range as text turned that data into thousands of phantom "strings".
+#
+# And it starts at $0912BA, not $0912C0. The first six bytes are the
+# unidentified weapon - its name, ？？？, and the head of its description -
+# reached only through the unidentified-item table at $091152. Starting at
+# $0912C0 began two bytes into that description, so the name was never
+# translated: a full-width ？ through the half-width path draws X, which is the
+# "XX" in the drop message.
 #
 # Block E is the status screen, in bank $91 and nowhere near the others. It is
 # reached by literal LDA #$11 / LDX #$D0xx, so those strings cannot move.

@@ -1,0 +1,527 @@
+NEW ISSUES
+==================
+  [ ] "took on a terrible aspect and vanished" -> "
+        The rest of this one did not make it into the file. It is B0106,
+        Ilion's end:
+            Ilion, the servant of
+            malice, took on a terrible
+            aspect and vanished<EE9><EE9>
+        Left as it is until I know what it should say.
+
+
+ROUND 8 - one open
+==================
+
+  [?] MAJOR ISSUE: items used in battle aren't being consumed
+        They are - just not the one you are holding, if you have another.
+        No code of ours is involved: this is the original game. When a
+        battle item is used up, $81:8508 looks for the same item in the
+        party bag first. If there is one, THAT copy is removed and the
+        character keeps the one they are carrying. Only when the bag has
+        none does the carried slot empty.
+
+        Every ordinary consumable is marked used-up (Food, Cure Herb, Wine,
+        Potion, Mandragora, the one-shot spell items); I checked each
+        handler. Worth one test to be sure: a Cure Herb with no spare in
+        the bag should vanish. If it does not, tell me what you used.
+
+        I also went through everything the patch changes that runs in
+        battle - the monster-name code, the text engine opcodes, the free
+        space - and none of it touches the inventory.
+
+  [x] What does the Goddess Ring do?
+        Used from the menu it plays Charl's voice - B0283, "<name>...can you
+        hear me? You can do it..." - and is not used up. In battle it does
+        nothing. Equipped, it is +5 defence. The Japanese is 女神のピアス, a
+        goddess EARRING, if you want the name to say so.
+  [x] Goddess Ring description: "A mysterious voice may be heard."
+        That is what the Japanese says. Two lines, " A mysterious voice may
+        be" / " heard.", since the whole sentence is 32 characters.
+
+  [x] unidentified weapon: "XX" in the drop message, "?" in the item
+      menu, nothing at the appraiser -> "???"
+        Block A starts six bytes earlier than we had it, at $0912BA. The
+        first thing there is this item's name, ？？？, and we started two
+        bytes into its description - so the name was never translated. A
+        full-width ？ through the half-width engine draws X. The ROM now has
+        "???" for both the name and the description's first line, so all
+        three places should read "???" - not yet seen in the game.
+
+        The workbook gains a row, so every block A ID moved up by one
+        (A0000 is now the weapon's name). Rows are matched by ROM offset, so
+        nothing is detached.
+
+  [x] five-digit experience runs out of the border
+        The message is back to "and gained N experience." - the fix is in the
+        engine instead. A number field right-aligns itself in its declared
+        width, and when the digit count is odd it starts with a half-width
+        blank. In a one-cell field in running prose that blank is the extra
+        space you saw: "gained" + space + blank + 12345, fifteen cells.
+
+        Now a number LONGER than its field (three digits or more here) just
+        flows like text, so "and gained 12345 experience." is exactly 28
+        characters. A number that fits its field is laid out as before, so
+        the spell panel's level and cost keep their fixed width.
+
+        Still there, and older than this: a ONE-digit number after a space
+        gets the same double space ("gained  8"). Changing that would also
+        change the spell panel, which is not cleared between spells, so I
+        left it. Say if you see it and want it chased.
+
+        check_script.py now measures every line with its numbers at five
+        digits, so a line like this cannot slip through again.
+
+  [x] Death poisoned the enemy - is it a poison spell?
+        No. Death and poison are separate routines, and Death never calls
+        the poison one. Against most monsters it kills outright. Against
+        monsters that resist it, it applies a status instead of killing,
+        and I have not traced which status yet. A resistant monster coming
+        away poisoned would explain what you saw. docs/memory-map.md has
+        the trail.
+
+  [x] Luna Staff has no + on its stats
+        Nor did Star Rod. The Japanese left the sign off three-digit bonuses
+        because a full-width ＋ would not fit; a half-width one does. Now
+        +100/+150 and +120/+130.
+
+  [x] "Ivuas" -> "Ivas", everywhere        45, including the crawl and the
+                                           Glossary
+  [x] "Loyd Von" -> "Loydphon"             2 in the script, plus the
+                                           Glossary; the Question is closed
+  [x] "Anyone at all... is it." -> "Anyone at all...is that so."
+        No space after the dots: with one it is 29 characters, one over.
+        The script already writes "...can you hear" that way.
+  [x] "forgive us." -> "forgive me."
+  [x] "That will do to be going on with." -> "That will do for now."
+  [x] "called me out to you" -> "called out to me"
+  [x] dropped the second Rinkle before "Then we shall be on our way......"
+  [x] Man in the Wall: "Oh! That is the token of" / " the moon!"
+        One space after "Oh!" - nothing else in the script uses two. The
+        item itself is "Moon Token" now: that was typed into the Script
+        sheet, which is generated, so it would have been overwritten. It is
+        on the Item names sheet instead.
+  [x] "the boy my mother had with her - " -> "with him - "
+  [x] "Somehow we brought it down by" -> "brought him down by"
+  [x] "The goddess, to the sky" -> "The goddess, up in the sky"
+  [x] "Somewhere in this Ilias, somewhere......" -> "in this world"
+
+  Also: the fortune-teller (B0101) and the Man in the Wall (B0227) had lost
+  all their line breaks in the workbook - a cell edited on one line saves
+  them as spaces. Both are back on their original breaks. "this world" in
+  B0101 and B0283 is kept.
+
+
+ROUND 7 - all closed
+====================
+
+  [x] no space between the number and Bezetta at the temple
+  [x] no space in the inn's "###for the whole lot."
+        Mine, from last round. The de-indent pass matched ANY leading <...> as a
+        control code to step over before the indentation - but <NUM7> is not a
+        control code, it draws, and the space after it is what separates the
+        number from the word. The regex took the field as a prefix and stripped
+        the space as if it were indentation.
+
+        Three lines, not two: the temple's offering, the inn's total, and the
+        Onyx the inn takes when you are short of Bezetta, which you had not hit
+        yet. All three restored from the workbook as it stood before that pass.
+
+  [x] "I came to this Darles to hold back" -> "I came to Darles to hold back"
+  [x] "So I came." is redundant
+        The Japanese splits one sentence across the pause - the purpose before
+        it and 「やってきました」 after - which is how the English came to say
+        "came" twice. The <WAIT> has to stay or the token check fails against
+        the Japanese, so the beat after it is now "That was why." rather than a
+        second "I came". Four words of mine; reword freely.
+
+  [x] "The last gift to you from Silia and from me ......it is."
+        -> "This is...... the last gift to you from me and Silia......"
+  [x] Summon Harp: "Summons a random battle, once."
+  [x] "Sheila went all through this Ilias," -> "Sheila travelled the world,"
+        travelLED, two Ls - the Glossary asks for British spelling throughout,
+        the way armour and paralysing are. Say if you want the single L.
+  [x] "All around was still." -> "The room was completely still."
+        Thirty characters, so it takes two rows. It has a page to itself, so
+        there is room.
+  [x] "rang in the dark magic guild." -> "rang in the unlit magic guild."
+  [x] "You are only being worked by" -> "being used by"
+  [x] "I am not being worked by" -> "I am not being used by"
+  [x] "I who will work Ivuas" -> "I who will use Ivuas"
+  [x] "now he is only being worked by Ivuas" -> "being used by Ivuas"
+
+
+ROUND 6 - all closed
+====================
+
+  [x] appraising: "That will be / 50 Bezetta ---" breaks the right border
+        AND IT EXPLAINS THE OTHER TWO BORDER REPORTS. My cell model was wrong,
+        not just my arithmetic.
+
+        A whole-cell glyph will not share a cell. RENDER's static path closes
+        any half-open cell and steps PAST it before writing, and the <NAME>
+        field does the same in NEWARG. So a frame tile, a full-width space or an
+        icon following an odd run of letters costs an extra half cell. That line
+        is " 50 Bezetta" (5.5, half-open), then the two dashes close the cell and
+        step on, then a space, then six blanks - fifteen cells in a fourteen-cell
+        window. It was never fourteen; I had just been counting it wrong.
+
+        tools/check_script.py models the closing rule now, and check_cover.py
+        imports the same function rather than keeping its own copy - the two
+        checks have to agree about what fits. Re-run over the whole script, that
+        line was the ONLY one over the window, which is why it was the only one
+        being reported. The padding on it was buying nothing, so it is gone.
+
+  [x] leading space on the temple, appraiser, antiquary, inn, sundries lines
+  [x] "When the goddess's mage..." bad leading spaces
+  [x] the death message's second line has leading space
+        The Japanese indents short lines with full-width spaces to centre them.
+        English runs half again as long, so the indent centres nothing - it just
+        pushes the line right. It comes off 45 strings now and goes on the END
+        instead, so each line still covers as much of its row as it did.
+
+        Menu options keep their indent: those really are centred, and reading
+        down a column of them is the point. The rule is punctuation - a sentence
+        gets de-indented, a bare label like Yes or Appraise does not.
+
+  [x] "Obtained the <item>" -> "Obtained <item>"
+  [x] Recall should say "start of the dungeon" like the Beast Plume
+        Both now read that way. The eight remaining "labyrinth" lines are the
+        old labyrinth between Kroag and Zev, which keeps its name.
+  [x] "Ah forgive me, I am late with it." -> "Ah, where are my manners."
+  [x] "Give my want to me!" -> "Give the want to me!"
+  [x] drop the Batica speaker line so she carries straight on
+  [x] "I cannot even walk my grandchild" -> "walk with my grandchild"
+  [x] "Staff Quill" -> "StaffFeather"
+  [x] "Corp's House" -> "Cope's House"   (C0093, keeps the house glyph)
+  [x] Evil Staff: "Mages only. When used, it calls up a battle."
+  [x] "Use the Door Key?" scrolled off behind Yes/No
+        The blank row I put in last round to hold Yes and No on the rows the
+        cursor wanted was a row the box did not have. Three lines again, with
+        the <WAIT> still ahead of both answers.
+
+
+ROUND 5 - all closed
+====================
+
+  [x] "Well come... you who are" -> "Welcome... you who are"   (B0044)
+
+  [x] Mage Earring description one character too long
+  [x] Goddess Idol description too long by one
+  [x] check the other items for the same thing
+        Fourteen description lines were twenty-nine or thirty characters where
+        the panel holds twenty-eight, so the last character - almost always the
+        full stop - sat on the border. Eleven description bodies, shared across
+        more items than that:
+
+          Holy Shield etc  health when damage is taken.  -> when you are hit.
+          Magic Sword      Only palace warriors and / magic warriors may equip it.
+                                                         -> Only palace and magic /
+                                                            warriors may equip it.
+          Satan Rod        Carries the effect of Death.  -> It carries Death's effect.
+          Terra Armour     Warriors only. Halves damage  -> ...Halves / damage and...
+          Vega Boots       same, rewrapped
+          Devil Mace       Anyone may equip it. Carries  -> ...it. / Carries the Quake effect.
+          Mage Earring     it. Experience keeps rising.  -> it. Your EXP keeps rising.
+          Luna Brooch      Nullifies paralysing attacks. -> Nullifies paralysis.
+          Astral Stone     Nullifies petrifying attacks. -> Nullifies petrification.
+          Queen's Ring     use restores your condition.  -> use cures your condition.
+          Goddess Idol     goddess. Restores all faith.  -> goddess. Restores faith.
+
+        And three in block B: the fortune-teller, and the two lottery lines,
+        where "<EE9><EE9>Nothing wrong, I hope...?" is only twenty-five
+        characters but fourteen and a half CELLS, because each dash is a whole
+        one.
+
+        That last case is why check_script.py never caught any of this properly.
+        Its width check counted characters after stripping tokens, so it flagged
+        the item descriptions as "line is 29 wide" - which was read as noise for
+        weeks - and missed the block B ones entirely. It counts cells now, the
+        way the renderer does: a full-width space, a frame tile and an icon are
+        each one whole cell, a half-width glyph is half of one. Nothing in the
+        script is over the fourteen-cell window any more.
+
+  [x] High Speed is one character too long (spells get nine)
+        Haste, which is what English calls it, and the description already read
+        "Quickens the party during battle". Name, description panel and the
+        Hourglass that casts it. Every other spell was already nine or under -
+        Resurrect is exactly nine.
+
+  [x] the onyx message: drop "And then,", match the item find message
+        Now "Obtained <N> Onyx" on one row, beside "Obtained the <item>".
+
+
+  [!] AND THE REASON THE BUILD NEARLY DID NOT FIT
+        Shortening all that text pushed block B twenty-five bytes past its
+        ceiling, which made no sense - the strings got SMALLER. Two real bugs in
+        the dictionary fitter were hiding behind the slack:
+
+        1. Blocks B and D are repacked into separate extents, but the fitter was
+           handed the SUM of their room as one ceiling. It happily spent block
+           D's two thousand spare bytes on block B, which cannot reach them.
+           One limit per block now.
+
+        2. Demoting an entry out of the cheap two-byte bank costs a byte at
+           EVERY reference, but the victim was chosen by how often the FIXED
+           strings used it - block B's use of it counted for nothing. So the
+           fitter kept demoting entries block B leans on hundreds of times.
+           Demotion is priced across every block now.
+
+        Block B was at 243 spare before this round and is at 3,213 now. The
+        second bug had been quietly costing about three thousand bytes all
+        along. The rescue pass also adds its entries one at a time and keeps
+        what fits, instead of giving up on the first combination that does not.
+
+        Also: MAX_ENTRIES was 765 where the 768-slot table holds 766 - slot()
+        steps over the two escape markers, so index 765 is slot 767. The last
+        slot had never been used.
+
+
+ROUND 4 - all closed
+====================
+
+  [x] "The party felled the beast" -> "The party felled the enemy"   (B0319)
+
+  [x] Selling a Wooden Staff removed the right border
+        Mine, from round 1, and the screenshot showed it exactly.
+
+        "Sell the <NAME:0301>?" is not nine cells wide. <NAME:sWW> pads UP to WW
+        cells and grows straight past it when the name needs more, and which
+        item it is is not known until the game runs. My width model counted the
+        field as its declared one cell; "Wooden Staff" is six. So the line is
+        really 11.5 cells, and the three cells of padding round one added took
+        it to 14.5. Half a cell past the fourteen-cell window is the right
+        border, and that is the border that disappeared.
+
+        The Japanese sized these lines so the longest name just fits - there is
+        nothing spare to pad, and padding can only overflow. The padding is off
+        every line in those windows that carries a <NAME> field: B0334 B0338
+        B0351 B0361 B0378 B0386 B0388.
+
+        tools/check_cover.py now models a field at its WIDEST rather than its
+        declared width, and flags with !! any line that could run past the
+        window. It reports 14.5 cells for the string as it was, and 11.5 as it
+        now is, so this particular mistake cannot come back unseen.
+
+        This also explains the "Thank you kindly." border bite properly. It was
+        the same half cell over the edge, from the same padding pass.
+
+  [x] a lost edit, found while verifying the above
+        "Now for your examination." went in during round 1 and was then undone,
+        in the same run, by the faith edit to the same cell - my editor wrote
+        each change into the workbook but not into the copy it read from, so the
+        second edit to one cell read the value from before the first and wrote
+        it back. Only that one string was hit; nothing else took two edits to a
+        single cell.
+
+        Re-applied, and the editor now updates both, so edits to one cell
+        compose. The check that caught it is worth keeping: render every string
+        back out of the BUILT ROM and assert each intended change is present and
+        each old wording is gone. Run against this build, everything passes -
+        the only three that look like misses are not:
+          "mouth of"   the Recall spell, which keeps "labyrinth" on purpose
+                       because its Japanese says 迷宮, not ダンジョン
+          "Gold"       the items Gold and Gold Spoon, which are named that
+          "start of the dungeon"  present; my walk had stopped short
+
+
+ROUND 3 - all closed
+====================
+
+  [x] Gaining levels has an extra line break between each stat line
+  [x] finding an item after battle has an extra newline before it
+        Mine, from round 2, and they confirmed the diagnosis rather than
+        contradicting it. Seven strings BEGAN with a newline the Japanese does
+        not have - "Health rose by N", "Obtained the <item>", and four more.
+        They were put there to make up for the trailing newline the workbook was
+        dropping. Once the trailing one was restored, each became a doubled
+        break. They are precisely the strings whose author had to work around
+        the missing newline, which is about as good a confirmation as the theory
+        could get.
+
+        Leading newline removed from all seven: B0321 B0324 B0325 B0326 B0327
+        B0328 B0329.
+
+  [x] Sell item text "Thank you kindly." takes a bite out of the right border
+        CONFIRMED FIXED by your test. The antiquary's line (B0352) was eleven
+        and a HALF cells where the Japanese is eleven - the padding pass only
+        ever ADDED width, so a line that was already too wide went straight past
+        it. Three full-width spaces of indent became two and an ordinary space:
+        eleven cells exactly, as the Japanese has it.
+
+        Worth remembering that the half cell was enough to do it. The window is
+        fourteen cells wide and the line was only 11.5, so on the geometry alone
+        it should not have reached the border - whatever the real mechanism is,
+        matching the Japanese width exactly is what fixed it. That is the rule
+        to hold to: not "under fourteen cells" but "the width the Japanese had".
+
+  [x] Resetting causes garbage instead of the company logo - EMULATOR, NOT ROM
+        Your test settled it: bsnes shows the logo with no garbage, snes9x does
+        not. bsnes is the accurate one, so the ROM is behaving correctly and
+        there is nothing here to fix.
+
+        Two things from chasing it that are worth keeping. First, a diff of our
+        ROM against a rebuild of the pre-session state showed the only regions
+        this session touched were the checksum, the three engine hooks, the
+        patch code at $90:E900, blocks A/B/C/D, the crawl archive, the SPC
+        glyph and the dictionary - nothing in the boot path. Second, an audit of
+        every region the build writes against the untouched Japanese ROM: every
+        one is either free space or a deliberate in-place replacement. Nothing
+        the build does lands on data that is not ours.
+
+        If it ever needs revisiting, tools exist to stage the patch set one step
+        at a time and find which one a symptom belongs to.
+
+
+ROUND 2 - fixed
+===============
+
+  [x] make the resource Faith into faith, didn't need to be capitalized
+        lower case wherever it is a noun in a sentence, like health. Two keep
+        their capital because they open a sentence: "Faith restored." and
+        "Faith rose by N", which sits beside "Health rose by N".
+
+  [x] Intro crawl has TOO MANY line breaks
+        the blank row after every line is gone. One row per line, one blank row
+        between paragraphs. Still centred. build/prologue_patch.py.
+
+  [x] "Use the Door Key?" shows Yes before you press the button
+        THE ROOT CAUSE, and it turned out to be much bigger than this prompt.
+        The Japanese asks over two rows, then waits, then offers both answers:
+
+            『トビラのカギ』を        row 0
+                使いますか？          row 1
+            <WAIT>     は い          row 2
+                 いいえ               row 3
+
+        The English fits the question on one row, which moved every later row
+        up one and left the <WAIT> between Yes and No. Four rows again, question
+        on the first, second left blank, so Yes and No are back on the rows the
+        cursor expects.
+
+  [x] Shop intro text is not clearing on the transition to Buy/Sell
+        608 of the 868 strings end `$0D $00` in the ROM - a newline, and then
+        the terminator. It is not decoration: it leaves the cursor at the start
+        of the NEXT row, so the following string drawn into the same window
+        starts where it should. Bare item names, which print inline in the
+        middle of a sentence, do not have one; anything that occupies a line of
+        its own does.
+
+        The workbook never carried it. The extractor rstrips it, and a trailing
+        blank line in a spreadsheet cell would not survive editing anyway, so
+        every English string was handing the next one a cursor halfway along a
+        line. That is the real cause of "Welcome to my shop! What can I get
+        you?" on one row, and of a good deal of the rest of the not-clearing
+        family - the padding fixed the symptom, this is the disease.
+
+        build/sheet.py now appends the newline wherever the Japanese has one.
+        It is plumbing, not text, so it is not authored: what the sheet says is
+        still what appears. This changes 608 strings at once - worth a careful
+        look at any window text while you play.
+
+  [x] Name Entry Screen: the SPC glyph needs to move the C left one pixel
+        C is the one letter whose 4x5 form opens with a blank column, so it sat
+        a pixel right of where END's D and DEL's L put their ink. build/systext.py
+
+  [x] Beast Plume description: "mouth of the labyrinth" -> "start of the dungeon"
+        matches the Japanese, which says そのダンジョン here. The Recall spell
+        keeps "labyrinth" - its Japanese says 迷宮, the labyrinth proper.
+
+  [x] 5th spell in Cast Spell menu - you confirm this is fixed
+        it was the description panel: those 19 descriptions were padded back to
+        their Japanese widths last round.
+
+
+NEEDS A LOOK
+============
+  [ ] block B has 225 bytes of headroom left, out of 64,704
+        the trailing newlines cost about 440 bytes and the padding about 250.
+        There is still room, but not much - if a future edit overflows, the
+        build says so and writes nothing rather than producing something broken.
+
+  [X] the shop transition, again
+        with the newline back, the greeting and the prompt are on separate rows
+        the way the Japanese has them, rather than running together. Whether
+        that is all you were seeing I cannot tell without watching it - if the
+        greeting is still sitting on the Buy/Sell page, a screenshot would
+        settle where on the screen it is surviving.
+
+
+Playthrough issues
+==================
+
+DONE - text that would not clear
+--------------------------------
+One bug, four symptoms. Menu and shop windows are never cleared between one
+string and the next; they did not need to be, because every Japanese glyph was
+a whole cell, so each line covered the line before it and left the cursor where
+the next string expected it. Half-width English covers half as much per
+character. Every line in these windows is now padded back to the width the
+Japanese filled. See "Covering, not just fitting" in docs/translating.md and
+`python3 tools/check_cover.py`.
+
+  [x] Drop Item menu option leaks an m when canceled out of (Use item)
+        the five submenu headers were 4 to 5 cells and the Japanese were all 5;
+        "Drop Item" is 4.5, so its last half-cell survived "Use Item". All five
+        padded to 5 cells.
+  [x] Shop text is writing over itself
+        "Welcome to my shop!" covered 9.5 of the 14 cells the Japanese filled,
+        so the menu that follows it started mid-line. Padded to 14.
+  [x] Item Storage (in the Barracks) is not clearing properly
+  [x] Appraiser as well
+  [x] Temple: text not clearing
+        52 strings across the appraiser, antiquary, shop, storage, temple and
+        inn padded back to their Japanese widths.
+  [x] Shop numbers don't clear properly when scrolling through the items
+        an engine bug, not a text one. $90:97C6 blanked `width + $A8 - 8` WHOLE
+        cells before the digits, which came to `width` exactly while a digit was
+        a whole cell too. With half-width digits the field shrank as the number
+        grew, so a longer number no longer reached over a shorter one. NUMPAD in
+        build/hw_patch.py counts the digits' cells instead, and the field is
+        `width` cells again whatever the value. Fixes every number in the game.
+
+DONE - wording
+--------------
+  [x] Beginning dialogue clunky ("all of a sudden")
+        now "Your father Gunas set out / on a journey without / warning, the
+        very day / after she died..."
+  [x] "You shall sit an examination." very clunky
+        now "Now for your examination."
+  [x] rename the resource for prayers into Faith
+        the spell type stays "prayer", the resource it spends is "Faith", so
+        "A prayer costs you Faith" reads. 15 strings and the Glossary.
+  [x] library in Kroag: "concerning this Ilias" -> "concerning the world"
+  [x]   "This Ilias is a place" -> "This world is a place"
+  [x]   "three cities of men in this Ilias" -> "...in this world"
+  [x]   "He was a mage of the same hour as" -> "He was a mage contemporary of"
+  [x]   "far from certain ---" runs out of the text border
+        it was 14.5 cells in a 14-cell box. Rewrapped onto four lines, and
+        "this Ilias" became "the world" to match the rest.
+  [x] The shop says Gold when the currency is Bezetta or Onyx
+        所持金 is "money in hand", not a currency - the currency is Bezetta or
+        Onyx and <NAME:0801> prints its mark. Now "Money". Say if you would
+        rather have Funds, Purse or Held.
+
+DONE - intro crawl
+------------------
+  [x] Look into line breaks/paragraph spacing for the wall of text scroll
+        the Japanese crawl is double-spaced, with a second blank row between
+        paragraphs, and centred; the English was set solid and left-aligned.
+        build/prologue_patch.py now does the spacing and the centring, and a
+        blank row on the `Intro crawl` sheet is a paragraph break.
+
+OPEN
+----
+  [X] 5th Spell in Cast Spell menu is leaking text when canceled to main menu
+        Not reproduced. The main menu repaints all eleven of its rows at the
+        full sixteen cells, so anything drawn in rows 4-14 is covered; rows 0-3
+        are the header bar and nothing in the main menu touches them. The spell
+        names themselves are short against the Japanese, but padding them would
+        put visible gaps into "Casting <NAME>." and "Learned <NAME> Lev.N!",
+        which print the same strings inline - and the menu pads the name field
+        itself, so they should not be the cause.
+        A screenshot would settle it. While looking, the spell description panel
+        WAS leaking the same way - Cure's " condition." is 5.5 cells where
+        Heal's " one party member." was 9 - and those 19 descriptions are fixed.
+
+
+
