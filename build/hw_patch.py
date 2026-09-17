@@ -222,6 +222,13 @@ emit(0x4A)                       # LSR A          = ceil(digits / 2)
 emit(0x49, 0xFF)                 # EOR #$FF
 emit(0x38)                       # SEC
 emit(0x63, 0x01)                 # ADC $01,S      width - ceil(digits / 2)
+# Negative means the number has outgrown its field - three or more digits in
+# a <NUM7:vv01>, which is running prose. There is nothing to right-align
+# against, and the half blank below only doubled the space before an odd digit
+# count: "and gained  12345 experience." Let the digits flow like any other
+# text. A number that exactly fills its field keeps the old layout, so the spell
+# panel's level and cost stay the same width whatever their value.
+emit(0x30); rel_at('NUMFLOW')    # BMI NUMFLOW
 emit(0x20, 0x5D, 0x96)           # JSR $965D      blank that many whole cells
 emit(0x68)                       # PLA            drop the width
 emit(0xA3, 0x03)                 # LDA $03,S      $A8 again
@@ -232,6 +239,9 @@ emit(0xEB)                       # XBA
 emit(0xA9, 0x01)                 # LDA #$01       text cell
 emit(0x20, 0x05, 0x96)           # JSR $9605
 label('NUMDONE')
+emit(0x60)                       # RTS
+label('NUMFLOW')
+emit(0x68)                       # PLA            drop the width
 emit(0x60)                       # RTS
 
 # --------------------------------------------------------------- dictionary --

@@ -18,8 +18,9 @@
 | `$090000-$090EF6` | block C — menus, config, status |
 | `$0908A9`, `$0908EE`, `$09095F` | block C tables, 24-bit `$12:xxxx` — party names, classes, nameplates |
 | `$090A5E` | block C spell table, 41 × 16-bit `$92:xxxx` |
-| `$090F00` | block A pointer table, 297 × 16-bit `$92:xxxx`, targets end `$092FD3` |
-| `$0912C0-$092FDF` | block A — items, spells, equipment |
+| `$090EF6` | item table, 150 × (name, description) 16-bit `$92:xxxx` pairs, item IDs `$00-$95` |
+| `$091152` | unidentified-item table, 90 more pairs, all pointing at the three `？？？` items |
+| `$0912BA-$092FDF` | block A — items, spells, equipment |
 | `$0930F7` | block D pointer table, 51 × 16-bit `$92:xxxx` |
 | `$09316E-$093943` | block D — Rinkle's area hints |
 | `$093943-$0976C5` | map data, not text |
@@ -42,6 +43,42 @@ Block A used to be listed as `$0912C0-$0976C5`. It is not: the item text stops a
 with one island of script in it, the hints at `$09316E`. Walking the whole range
 as text invents thousands of phantom strings, which is what made the workbook
 2,884 rows instead of 920.
+
+It also starts six bytes earlier than it was once given, at `$0912BA`: the
+unidentified weapon's name `？？？` and the head of its description sit there,
+reached only through the unidentified-item table. Starting at `$0912C0` left
+that name in Japanese, and a full-width `？` drawn by the half-width engine is
+an `X` - the "XX" in the drop message.
+
+## Items
+
+Item ID `n` is entry `n` of the table at `$090EF6`. Engine-side:
+
+| Where | What |
+|---|---|
+| `$2A:8000` | item data, 32 bytes per item, index `ID - 1` (ROM `$150000`) |
+| `$29:D000` | monster data, 192 bytes per monster, 16-bit fields (ROM `$14D000`) |
+| `$7E:32C0` | the party bag, 60 item IDs |
+| `$7E:0770` | carried items, `member * 9 + slot`; `$0728` is the same shape, equipped |
+| `$81:8000` | field item effects, called from `$90:DA03`; table `$81:8090` |
+| `$81:8493` | battle item use; table `$81:85B1`, indexed `ID - $23` |
+| `$81:8508` | battle consumption: removes a copy **from the bag** if there is one, and only empties the carried slot when there is not |
+| `$91:C7DD` | field item use; table `$11:C82E`. Carry out = consumed, then `$10:DBC6` (bag) or `$10:DC59` (carried) removes it |
+| `$80:97B6` | battle effect table, indexed by `$084E`: 0 Fire, 1 Frost, `$08` poison, `$0F` Death, `$10` Thunder, `$11` Quake |
+
+A battle handler sets `$0804` to 1 when the item is used up, 0 when it is not, or
+2 when it turns into the item in `$0802` (Magic Seed). `$081x-$086x` is battle
+scratch that half the battle code writes, `$084E` included.
+
+`$81:8508` is why an item used in battle can look unconsumed: with a spare in the
+bag, the spare goes and the carried one stays. That is the original game.
+
+Death (`$80:BB32`) never calls the poison effect (`$80:D32B`). What it does to a
+monster depends on the monster's field `$24`: below 3 it goes straight to
+`$DE98` with type 5, which kills unless field 9 is 999. At 3, 4 and 5+ it goes
+to `$D861`, `$D8F2` and `$D97F` instead, which hand a status value to `$DCF9`;
+that applies up to three effects through `$DE98` by type. Which statuses those
+are - whether a resistant monster comes away poisoned - is not traced yet.
 
 ## RAM
 
@@ -72,7 +109,7 @@ as text invents thousands of phantom strings, which is what made the workbook
 | `$90:9ACB` | `LDA $2C00,X / AND #$FC00` | `JMP HIATTR` |
 | `$90:9738` | `JSR $986A` | `JSR CLOSE` — close a half-open cell first |
 | `$90:970B` | `JSR $986A` | `JSR CLOSE` |
-| `$90:97C6` | `JSR $9859 / CLC / ADC $01,S / SEC / SBC #$08 / JSR $965D` | `JSR NUMPAD` — a number field is `width` cells again |
+| `$90:97C6` | `JSR $9859 / CLC / ADC $01,S / SEC / SBC #$08 / JSR $965D` | `JSR NUMPAD` — a number field is `width` cells again, and one that outgrows it flows as text |
 | `$90:97E9` | `ADC #$A2` | `ADC #$10` — digits were the Japanese font's base |
 | `$91:D033`, `$91:D077` | `$D9` | `$2F` — status separator, full-width slash |
 

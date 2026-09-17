@@ -1,6 +1,114 @@
 NEW ISSUES
 ==================
-(none outstanding)
+  [ ] "took on a terrible aspect and vanished" -> "
+        The rest of this one did not make it into the file. It is B0106,
+        Ilion's end:
+            Ilion, the servant of
+            malice, took on a terrible
+            aspect and vanished<EE9><EE9>
+        Left as it is until I know what it should say.
+
+
+ROUND 8 - one open
+==================
+
+  [?] MAJOR ISSUE: items used in battle aren't being consumed
+        They are - just not the one you are holding, if you have another.
+        No code of ours is involved: this is the original game. When a
+        battle item is used up, $81:8508 looks for the same item in the
+        party bag first. If there is one, THAT copy is removed and the
+        character keeps the one they are carrying. Only when the bag has
+        none does the carried slot empty.
+
+        Every ordinary consumable is marked used-up (Food, Cure Herb, Wine,
+        Potion, Mandragora, the one-shot spell items); I checked each
+        handler. Worth one test to be sure: a Cure Herb with no spare in
+        the bag should vanish. If it does not, tell me what you used.
+
+        I also went through everything the patch changes that runs in
+        battle - the monster-name code, the text engine opcodes, the free
+        space - and none of it touches the inventory.
+
+  [x] What does the Goddess Ring do?
+        Used from the menu it plays Charl's voice - B0283, "<name>...can you
+        hear me? You can do it..." - and is not used up. In battle it does
+        nothing. Equipped, it is +5 defence. The Japanese is 女神のピアス, a
+        goddess EARRING, if you want the name to say so.
+  [x] Goddess Ring description: "A mysterious voice may be heard."
+        That is what the Japanese says. Two lines, " A mysterious voice may
+        be" / " heard.", since the whole sentence is 32 characters.
+
+  [x] unidentified weapon: "XX" in the drop message, "?" in the item
+      menu, nothing at the appraiser -> "???"
+        Block A starts six bytes earlier than we had it, at $0912BA. The
+        first thing there is this item's name, ？？？, and we started two
+        bytes into its description - so the name was never translated. A
+        full-width ？ through the half-width engine draws X. The ROM now has
+        "???" for both the name and the description's first line, so all
+        three places should read "???" - not yet seen in the game.
+
+        The workbook gains a row, so every block A ID moved up by one
+        (A0000 is now the weapon's name). Rows are matched by ROM offset, so
+        nothing is detached.
+
+  [x] five-digit experience runs out of the border
+        The message is back to "and gained N experience." - the fix is in the
+        engine instead. A number field right-aligns itself in its declared
+        width, and when the digit count is odd it starts with a half-width
+        blank. In a one-cell field in running prose that blank is the extra
+        space you saw: "gained" + space + blank + 12345, fifteen cells.
+
+        Now a number LONGER than its field (three digits or more here) just
+        flows like text, so "and gained 12345 experience." is exactly 28
+        characters. A number that fits its field is laid out as before, so
+        the spell panel's level and cost keep their fixed width.
+
+        Still there, and older than this: a ONE-digit number after a space
+        gets the same double space ("gained  8"). Changing that would also
+        change the spell panel, which is not cleared between spells, so I
+        left it. Say if you see it and want it chased.
+
+        check_script.py now measures every line with its numbers at five
+        digits, so a line like this cannot slip through again.
+
+  [x] Death poisoned the enemy - is it a poison spell?
+        No. Death and poison are separate routines, and Death never calls
+        the poison one. Against most monsters it kills outright. Against
+        monsters that resist it, it applies a status instead of killing,
+        and I have not traced which status yet. A resistant monster coming
+        away poisoned would explain what you saw. docs/memory-map.md has
+        the trail.
+
+  [x] Luna Staff has no + on its stats
+        Nor did Star Rod. The Japanese left the sign off three-digit bonuses
+        because a full-width ＋ would not fit; a half-width one does. Now
+        +100/+150 and +120/+130.
+
+  [x] "Ivuas" -> "Ivas", everywhere        45, including the crawl and the
+                                           Glossary
+  [x] "Loyd Von" -> "Loydphon"             2 in the script, plus the
+                                           Glossary; the Question is closed
+  [x] "Anyone at all... is it." -> "Anyone at all...is that so."
+        No space after the dots: with one it is 29 characters, one over.
+        The script already writes "...can you hear" that way.
+  [x] "forgive us." -> "forgive me."
+  [x] "That will do to be going on with." -> "That will do for now."
+  [x] "called me out to you" -> "called out to me"
+  [x] dropped the second Rinkle before "Then we shall be on our way......"
+  [x] Man in the Wall: "Oh! That is the token of" / " the moon!"
+        One space after "Oh!" - nothing else in the script uses two. The
+        item itself is "Moon Token" now: that was typed into the Script
+        sheet, which is generated, so it would have been overwritten. It is
+        on the Item names sheet instead.
+  [x] "the boy my mother had with her - " -> "with him - "
+  [x] "Somehow we brought it down by" -> "brought him down by"
+  [x] "The goddess, to the sky" -> "The goddess, up in the sky"
+  [x] "Somewhere in this Ilias, somewhere......" -> "in this world"
+
+  Also: the fortune-teller (B0101) and the Man in the Wall (B0227) had lost
+  all their line breaks in the workbook - a cell edited on one line saves
+  them as spaces. Both are back on their original breaks. "this world" in
+  B0101 and B0283 is kept.
 
 
 ROUND 7 - all closed

@@ -142,7 +142,7 @@ PTR_TABLES = [
 
 TEXT_BLOCKS = [
     ('C', 0x090000, 0x090EF6),   # menus, windows, status/system text (bank $92 $8000)
-    ('A', 0x0912C0, 0x092FDF),   # item / spell / equipment text
+    ('A', 0x0912BA, 0x092FDF),   # item / spell / equipment text
     ('D', 0x09316E, 0x093943),   # Rinkle's area hints, table at $0930F7
     ('B', 0x098340, 0x0A5625),   # main story script
     ('E', 0x08D023, 0x08D08E),   # status screen layout, bank $91
@@ -153,6 +153,13 @@ TEXT_BLOCKS = [
 # ending at $092FD3. Past it the bank holds map data with one island of script
 # in it: 51 hint strings with their own table at $0930F7. Walking the whole
 # range as text turned that data into thousands of phantom "strings".
+#
+# And it starts at $0912BA, not $0912C0. The first six bytes are the
+# unidentified weapon - its name, ？？？, and the head of its description -
+# reached only through the unidentified-item table at $091152. Starting at
+# $0912C0 began two bytes into that description, so the name was never
+# translated: a full-width ？ through the half-width path draws X, which is the
+# "XX" in the drop message.
 #
 # Block E is the status screen, in bank $91 and nowhere near the others. It is
 # reached by literal LDA #$11 / LDX #$D0xx, so those strings cannot move.

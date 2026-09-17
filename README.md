@@ -9,7 +9,7 @@ Super Famicom, ASCII / System Sacom, 1993.
 |---|---|
 | Text engine | Reverse engineered, patched to half-width |
 | Character table | Complete — 192 text glyphs, 256 kanji, read out of the ROM font |
-| Script extraction | Complete — 920 strings across five blocks |
+| Script extraction | Complete — 921 strings across five blocks |
 | Compression | RUX and a second LZSS, both decoded, both compressors written |
 | Title screen, name entry, intro crawl | Translated — name entry buttons redrawn, cursor skips the blanks |
 | Block C — menus, places, classes, spells | Translated |
@@ -50,7 +50,7 @@ double-applied patch fails loudly instead of producing something subtly broken.
 | Block | ROM | Strings | Contents |
 |---|---|---:|---|
 | C | `$090000-$090EF6` | 138 | menus, config, status windows |
-| A | `$0912C0-$092FDF` | 305 | items, spells, equipment |
+| A | `$0912BA-$092FDF` | 306 | items, spells, equipment |
 | D | `$09316E-$093943` | 51 | Rinkle's area hints |
 | B | `$098340-$0A5625` | 412 | story script |
 | E | `$08D023-$08D08E` | 14 | status screen layout, bank `$91` |

@@ -2,7 +2,7 @@
 
 ## The workbook is the script
 
-`data/Wondrous_Magic_script.ods` — 920 rows in `Script`, one per string, plus the
+`data/Wondrous_Magic_script.ods` — 921 rows in `Script`, one per string, plus the
 sheets that hold everything else. It is OpenDocument, so LibreOffice, Excel and
 Google Sheets all open it; `build/book.py` reads and writes it through odfpy.
 

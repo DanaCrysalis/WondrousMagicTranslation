@@ -9,7 +9,8 @@ once the dictionary has been fitted; this catches the mistakes that are easy to
 make by hand and annoying to find later:
 
     tokens        every <...> in the English matches the Japanese, in order
-    width         no line wider than the 14-cell box it is drawn in
+    width         no line wider than the 14-cell box it is drawn in, even
+                  when a number field holds five digits
     ASCII         no curly quotes, em dashes, ellipsis characters or accents
     ratio         English far enough under budget that the dictionary can cope
 
@@ -27,12 +28,12 @@ CELLS = 14                # a dialogue box or description panel, in cells
 RATIO = 2.6
 
 
-def cells(line):
+def cells(line, digits=1):
     """Cell width of one line, the way $90:9605 actually lays it out.
 
     A half-width ASCII glyph is half a cell. Everything else is a whole one - a
-    full-width space, a window frame tile, a $1F icon - and a <NAME> or <NUM>
-    field is as wide as the value it prints, with its declared width the floor.
+    full-width space, a window frame tile, a $1F icon - and a <NAME> field is
+    as wide as the value it prints, with its declared width the floor.
 
     The part that is easy to miss, and that counting characters cannot express:
     a whole-cell glyph will not share a cell. RENDER's static path closes any
@@ -40,6 +41,11 @@ def cells(line):
     the same in NEWARG. So a frame tile after an odd run of letters costs an
     extra half cell - which is how " 50 Bezetta<EE9><EE9> " and six blanks came
     to fifteen cells in a fourteen-cell window and ate the right border.
+
+    A number field is measured holding `digits` digits. NUMPAD right-aligns it
+    in its declared width - whole blank cells, then a half blank when the digit
+    count is odd - as long as it fits. A number that outgrows its field just
+    flows as half-width text: three or more digits in a <NUM7:vv01>.
     """
     n, half, i = 0.0, False, 0
 
@@ -61,9 +67,17 @@ def cells(line):
             elif body[0] == 'G':             # a manufactured half-width glyph
                 n += 0.5
                 half = not half
-            elif body.startswith(('NAME:', 'NUM7:', 'NUM8:')):
+            elif body.startswith('NAME:'):
                 close()
                 n += int(body.split(':')[1][2:], 16)
+            elif body.startswith(('NUM7:', 'NUM8:')):
+                width = int(body.split(':')[1][2:], 16)
+                if width - (digits + 1) // 2 >= 0:
+                    close()
+                    n += width
+                else:
+                    n += digits * 0.5
+                    half ^= bool(digits & 1)
             continue
         i += 1
         if c == '\n':
@@ -77,6 +91,8 @@ def cells(line):
     close()                                  # the newline closes the last cell
     return n
 
+
+DIGITS = 5                # the most a 16-bit value prints
 
 # offsets whose layout is columns, not prose - width is checked by build.py
 SKIP_WIDTH = range(0x090000, 0x090EF6)
@@ -108,6 +124,13 @@ def main():
                 if w > CELLS:
                     print('$%06X line is %s cells, window is %d: %r'
                           % (off, w, CELLS, line))
+                    errors += 1
+                elif cells(line, DIGITS) > CELLS:
+                    # Experience from the Ilion fight is five digits, and a
+                    # field that grew past the window ate the border.
+                    print('$%06X line reaches %s cells with a five-digit number,'
+                          ' window is %d: %r'
+                          % (off, cells(line, DIGITS), CELLS, line))
                     errors += 1
 
         bad = [c for c in en if ord(c) > 0x7E and c != '\u3000']

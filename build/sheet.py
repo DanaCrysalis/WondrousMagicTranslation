@@ -31,7 +31,7 @@ import book
 
 BOOK = os.path.join(paths.DATA, 'Wondrous_Magic_script.ods')
 
-BLOCK_A = (0x0912C0, 0x092FDF)
+BLOCK_A = (0x0912BA, 0x092FDF)       # see wmtool.TEXT_BLOCKS
 NL = chr(10)
 
 _cache = {}
@@ -104,6 +104,10 @@ def block_a():
         # name will not fit that, the icon run simply shifts left - it only has
         # to stay inside the 14-cell window.
         icons = icons.replace('＋', '+').replace('−', '-').replace('？', '?')
+        # The Japanese dropped the sign on a three-digit bonus - Luna Staff and
+        # Star Rod read 100 and 150 - because a full-width ＋ would not fit.
+        # A half-width one does, so every bonus reads the same way.
+        icons = re.sub(r'(<S3[678]>)(\d)', r'\1+\2', icons)
         if icons:
             pad = max(1, 2 * len(re.sub(r'<[^>]*>', '', jp_name)) - len(en_name))
         else:
